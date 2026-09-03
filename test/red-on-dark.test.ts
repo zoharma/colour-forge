@@ -2,7 +2,7 @@ import { it } from "vitest";
 import { expect } from "vitest";
 import { solveStep } from "../src/color/solver";
 import { hexToOklch, oklchToHex } from "../src/color/oklch";
-import { apcaYHex, apcaHex, targetYForLc } from "../src/color/apca";
+import { apcaYHex, targetYForLc } from "../src/color/apca";
 import { wcagRatioHex } from "../src/color/wcag";
 import { oklchToGamutSafeLinear } from "../src/color/oklch";
 import { apcaY } from "../src/color/apca";
@@ -30,7 +30,7 @@ function pureApca(H: number, C: number) {
 it("keeps a dark-mode red red, without dropping under WCAG 2.2", () => {
   const { H, C } = hexToOklch("#d63c41");
   const balanced = solveStep(
-    { hue: H, chroma: C, backgroundHex: bg, backgroundY: apcaYHex(bg), backgroundIsLight: false, requirement: "body" },
+    { hue: H, chroma: C, backgroundHex: bg, backgroundY: apcaYHex(bg), backgroundIsLight: false, requirement: "body", policy: "wcag-strict" },
     target,
   );
   for (const [label, hex] of [

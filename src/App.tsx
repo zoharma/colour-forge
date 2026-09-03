@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { auditDraft, draftAsIntent, separationRows } from "./color/audit";
 import type { CvdView } from "./color/cvd";
+import {
+  POLICY_DESCRIPTIONS,
+  POLICY_LABELS,
+  type ContrastPolicy,
+} from "./color/solver";
 import { buildDraft } from "./color/scale";
 import { isValidHex, normaliseHex } from "./color/srgb";
 import { DEFAULT_PROFILE_ID, PROFILES, findProfile, type ModeKey, type SeededIntent } from "./profiles";
@@ -10,6 +15,8 @@ import { ExportPanel } from "./ui/ExportPanel";
 import { FamilyTable } from "./ui/FamilyTable";
 import { Findings } from "./ui/Findings";
 import { ScalePanel } from "./ui/ScalePanel";
+import { ScaleTable } from "./ui/ScaleTable";
+import { SeedPicker } from "./ui/SeedPicker";
 import { SeparationTable } from "./ui/SeparationTable";
 
 type ThemeChoice = "system" | "light" | "dark";
@@ -24,6 +31,7 @@ function readUrlState() {
   return {
     profileId: params.get("profile") ?? DEFAULT_PROFILE_ID,
     name: params.get("name") ?? "draft",
+    policy: (params.get("policy") as ContrastPolicy | null) ?? "wcag-strict",
     // Not one of the example intents: seeding on top of one opens the tool
     // onto a wall of collisions with itself, which reads as the tool being
     // broken rather than as the finding it is.
@@ -44,6 +52,8 @@ export function App() {
   const [profileId, setProfileId] = useState(initial.profileId);
   const [name, setName] = useState(initial.name);
   const [seedHex, setSeedHex] = useState(initial.seedHex);
+  const [policy, setPolicy] = useState<ContrastPolicy>(initial.policy);
+  const [showScale, setShowScale] = useState(false);
   const [hexDraft, setHexDraft] = useState(initial.seedHex);
   const [cvdView, setCvdView] = useState<CvdView>(() => readStored<CvdView>("cf-cvd", "none"));
   const [theme, setTheme] = useState<ThemeChoice>(() => readStored<ThemeChoice>("cf-theme", "system"));
@@ -82,11 +92,14 @@ export function App() {
   }, [cvdView]);
 
   useEffect(() => {
-    const params = new URLSearchParams({ profile: profileId, name, seed: seedHex });
+    const params = new URLSearchParams({ profile: profileId, name, seed: seedHex, policy });
     window.history.replaceState(null, "", `#${params.toString()}`);
-  }, [profileId, name, seedHex]);
+  }, [profileId, name, seedHex, policy]);
 
-  const draft = useMemo(() => buildDraft(profile, name.trim() || "draft", seedHex), [profile, name, seedHex]);
+  const draft = useMemo(
+    () => buildDraft(profile, name.trim() || "draft", seedHex, policy),
+    [profile, name, seedHex, policy],
+  );
 
   // The draft participates in the family checks as a live row, so a change to
   // the seed is reflected in the separation table immediately.
@@ -221,6 +234,31 @@ export function App() {
               </div>
             </div>
 
+            <div style={{ marginTop: 16 }}>
+              <span className="field-label">Material 500 — one-click seeds</span>
+              <SeedPicker seedHex={seedHex} cvdView={cvdView} onPick={commitHex} />
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <span className="field-label">Where hue and WCAG 2.2 conflict</span>
+              <div className="segmented" role="group" aria-label="Contrast policy">
+                {(["wcag-strict", "wcag-relaxed", "hue-first"] as ContrastPolicy[]).map((p) => (
+                  <button key={p} type="button" aria-pressed={policy === p} onClick={() => setPolicy(p)}>
+                    {POLICY_LABELS[p]}
+                  </button>
+                ))}
+              </div>
+              <p className="policy-note">
+                {POLICY_DESCRIPTIONS[policy]}{" "}
+                {policy !== "wcag-strict" && (
+                  <strong>
+                    Only fires where the conflict is real — a hue that can meet the criterion and stay
+                    itself is unaffected.
+                  </strong>
+                )}
+              </p>
+            </div>
+
             <p className="readout" style={{ marginTop: 14 }}>
               OKLCH <b>L</b> {o.L.toFixed(3)} <b>C</b> {o.C.toFixed(3)} <b>H</b> {o.H.toFixed(1)}°
             </p>
@@ -240,6 +278,19 @@ export function App() {
                 />
               ))}
             </div>
+
+            <details style={{ marginTop: 18 }} open={showScale} onToggle={(e) => setShowScale(e.currentTarget.open)}>
+              <summary style={{ cursor: "pointer", fontSize: "0.8125rem" }}>
+                All {profile.scaleSize} steps with hex values
+              </summary>
+              <div style={{ marginTop: 12 }}>
+                <ScaleTable profile={profile} draft={draft} cvdView={cvdView} />
+                <p className="foot-note">
+                  Steps no role claims are spare capacity — a chart series, a hover state, a role that does
+                  not exist yet. The Full scale export has them as numbered tokens.
+                </p>
+              </div>
+            </details>
           </div>
         </section>
 

@@ -2,7 +2,7 @@
 
 import { apcaHex, apcaYHex } from "./apca";
 import { hexToOklch } from "./oklch";
-import { solveStep, type SolvedStep, type StepContext } from "./solver";
+import { solveStep, type ContrastPolicy, type SolvedStep, type StepContext } from "./solver";
 import { WCAG_MINIMUM, meetsWcag, wcagRatioHex, type WcagRequirement } from "./wcag";
 import type { ModeKey, Profile, RoleDef } from "../profiles/types";
 
@@ -28,7 +28,12 @@ function requirementsByIndex(profile: Profile, mode: ModeKey): WcagRequirement[]
   return out;
 }
 
-export function generateScale(profile: Profile, mode: ModeKey, seedHex: string): SolvedStep[] {
+export function generateScale(
+  profile: Profile,
+  mode: ModeKey,
+  seedHex: string,
+  policy: ContrastPolicy = "wcag-strict",
+): SolvedStep[] {
   const { H, C } = hexToOklch(seedHex);
   const modeSpec = profile.modes[mode];
   const backgroundY = apcaYHex(modeSpec.background);
@@ -43,6 +48,7 @@ export function generateScale(profile: Profile, mode: ModeKey, seedHex: string):
       backgroundY,
       backgroundIsLight,
       requirement: requirements[i] ?? "none",
+      policy,
     };
     return solveStep(ctx, modeSpec.targetLc[i] ?? 0);
   });
@@ -158,6 +164,7 @@ export interface ModeResult {
 export interface Draft {
   name: string;
   seedHex: string;
+  policy: ContrastPolicy;
   seedOklch: ReturnType<typeof hexToOklch>;
   light: ModeResult;
   dark: ModeResult;
@@ -165,9 +172,14 @@ export interface Draft {
 
 const foregroundRoles = (profile: Profile): RoleDef[] => profile.roles.filter((r) => r.needsForeground);
 
-export function buildDraft(profile: Profile, name: string, seedHex: string): Draft {
+export function buildDraft(
+  profile: Profile,
+  name: string,
+  seedHex: string,
+  policy: ContrastPolicy = "wcag-strict",
+): Draft {
   const forMode = (mode: ModeKey): ModeResult => {
-    const scale = generateScale(profile, mode, seedHex);
+    const scale = generateScale(profile, mode, seedHex, policy);
     const roles = computeRoles(profile, mode, scale);
     const foregrounds: Record<string, ForegroundCandidate[]> = {};
     for (const role of foregroundRoles(profile)) {
@@ -180,6 +192,7 @@ export function buildDraft(profile: Profile, name: string, seedHex: string): Dra
   return {
     name,
     seedHex,
+    policy,
     seedOklch: hexToOklch(seedHex),
     light: forMode("light"),
     dark: forMode("dark"),

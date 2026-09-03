@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { exportCss, exportJson } from "../color/export";
+import { exportCss, exportJson, exportScaleCss } from "../color/export";
 import type { Draft } from "../color/scale";
 import type { ModeKey, Profile } from "../profiles/types";
 
@@ -10,7 +10,19 @@ interface Props {
   foregroundOverrides: Partial<Record<ModeKey, Record<string, string>>>;
 }
 
-type Format = "css" | "json";
+type Format = "css" | "scale" | "json";
+
+const FORMAT_LABELS: Record<Format, string> = {
+  css: "Roles",
+  scale: "Full scale",
+  json: "JSON",
+};
+
+const FORMAT_NOTES: Record<Format, string> = {
+  css: "The named roles only, in this profile's own token naming.",
+  scale: "Every step of both ramps as numbered tokens, including the ones no role claims.",
+  json: "The roles with their measurements, for a token pipeline rather than a stylesheet.",
+};
 
 export function ExportPanel({ profile, draft, foregroundOverrides }: Props) {
   const [format, setFormat] = useState<Format>("css");
@@ -18,7 +30,12 @@ export function ExportPanel({ profile, draft, foregroundOverrides }: Props) {
   const [status, setStatus] = useState("");
 
   const options = { foregroundOverrides, includeMeasurements: annotate };
-  const output = format === "css" ? exportCss(profile, draft, options) : exportJson(profile, draft, options);
+  const output =
+    format === "css"
+      ? exportCss(profile, draft, options)
+      : format === "scale"
+        ? exportScaleCss(profile, draft, options)
+        : exportJson(profile, draft, options);
 
   const copy = async () => {
     try {
@@ -34,9 +51,9 @@ export function ExportPanel({ profile, draft, foregroundOverrides }: Props) {
     <>
       <div className="flex-between" style={{ marginBottom: 10 }}>
         <div className="segmented" role="group" aria-label="Output format">
-          {(["css", "json"] as Format[]).map((f) => (
+          {(["css", "scale", "json"] as Format[]).map((f) => (
             <button key={f} type="button" aria-pressed={format === f} onClick={() => setFormat(f)}>
-              {f.toUpperCase()}
+              {FORMAT_LABELS[f]}
             </button>
           ))}
         </div>
@@ -56,7 +73,7 @@ export function ExportPanel({ profile, draft, foregroundOverrides }: Props) {
       </label>
       <textarea id="export-output" className="output" readOnly spellCheck={false} value={output} />
       <p className="foot-note" aria-live="polite">
-        {status || "Nothing is written back to any file — review, then paste in by hand."}
+        {status || `${FORMAT_NOTES[format]} Nothing is written back to any file — review, then paste in by hand.`}
       </p>
     </>
   );

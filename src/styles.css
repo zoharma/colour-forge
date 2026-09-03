@@ -658,3 +658,32 @@ textarea.output {
   color: var(--ink-soft);
   margin-bottom: 14px;
 }
+
+/* ---------- seed picker ---------- */
+
+.seed-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.seed-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid rgb(0 0 0 / 0.2);
+  cursor: pointer;
+  padding: 0;
+}
+
+.seed-swatch[aria-pressed="true"] {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.policy-note {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  margin: 8px 0 0;
+  max-width: 72ch;
+}

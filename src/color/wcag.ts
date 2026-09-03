@@ -57,3 +57,35 @@ export function wcagLevel(ratio: number): "AAA" | "AA" | "AA Large" | "fail" {
   if (ratio >= 3) return "AA Large";
   return "fail";
 }
+
+/** The next standard level down from a requirement.
+ *
+ *  There is a real ladder here, not just "pass or fail": text that cannot
+ *  reach 4.5:1 is still conformant at 3:1 if it is set large (≥18.66px bold
+ *  or ≥24px), and a graphic that cannot reach 3:1 is conformant if it is
+ *  decorative and carries no meaning on its own. Stepping down is therefore
+ *  a design decision with a named consequence, which is very different from
+ *  simply missing the bar. */
+export function oneLevelDown(requirement: WcagRequirement): WcagRequirement {
+  switch (requirement) {
+    case "enhanced":
+      return "body";
+    case "body":
+      return "large";
+    case "large":
+    case "non-text":
+      return "none";
+    case "none":
+      return "none";
+  }
+}
+
+/** What a given ratio is actually legal for, said plainly. This is the honest
+ *  reading of a colour that misses AA: not "broken", but "narrower than you
+ *  probably intended, and here is the obligation that comes with it". */
+export function permittedUsage(ratio: number): string {
+  if (ratio >= 7) return "any text, including AAA";
+  if (ratio >= 4.5) return "body text and anything below it";
+  if (ratio >= 3) return "large text (≥18.66px bold or ≥24px) and non-text elements";
+  return "decoration only — it must not be the sole carrier of meaning";
+}

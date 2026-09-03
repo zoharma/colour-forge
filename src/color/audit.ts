@@ -10,7 +10,7 @@ import { CVD_SEPARATION_COMFORTABLE, CVD_SEPARATION_FLOOR, worstCvdSeparation } 
 import { hexToOklch, hueDelta } from "./oklch";
 import { rgbDistanceHex } from "./srgb";
 import { chosenForeground, type Draft } from "./scale";
-import { WCAG_CRITERION, meetsWcag, wcagRatioHex } from "./wcag";
+import { WCAG_CRITERION, meetsWcag, permittedUsage, wcagRatioHex } from "./wcag";
 import { separationFloorFor, separationSeverityFor, type ModeKey, type Profile, type SeededIntent } from "../profiles/types";
 
 export type Severity = "blocker" | "warning" | "note";
@@ -51,6 +51,23 @@ function contrastFindings(profile: Profile, draft: Draft): Finding[] {
       const step = draft[mode].roles[role.key];
       if (!step) continue;
 
+      // A deliberate miss is a different thing from a failure, and gets said
+      // differently: the colour was kept on purpose, and what comes with that
+      // is a narrower permitted usage plus an obligation to carry the meaning
+      // some other way. Still a blocker — it is a decision that has to reach
+      // whoever implements it, not a note to skim past.
+      if (step.conformance === "below-by-choice") {
+        findings.push({
+          id: `contrast-below-aa-${mode}-${role.key}`,
+          severity: "blocker",
+          category: "contrast",
+          mode,
+          role: role.key,
+          message: `${role.label} is deliberately below ${WCAG_CRITERION[role.requirement]} at ${step.wcagRatio.toFixed(2)}:1, to keep the hue.`,
+          detail: `Legal for ${permittedUsage(step.wcagRatio)}. This hue could not both reach the criterion and stay recognisably itself, and the contrast policy was set to keep the colour. Ship it only with a non-colour cue — an icon, a label, a shape — carrying the same meaning, and keep it off small body text.`,
+        });
+      }
+
       if (step.verdict === "below-both") {
         findings.push({
           id: `contrast-fail-${mode}-${role.key}`,
@@ -59,7 +76,7 @@ function contrastFindings(profile: Profile, draft: Draft): Finding[] {
           mode,
           role: role.key,
           message: `${role.label} cannot meet ${WCAG_CRITERION[role.requirement]} at any lightness of this hue.`,
-          detail: `Best reachable is ${step.wcagRatio.toFixed(2)}:1 (APCA Lc ${step.lc.toFixed(0)}). This hue will not carry this role against the ${mode} background — change the hue, or use the role differently.`,
+          detail: `Best reachable is ${step.wcagRatio.toFixed(2)}:1 (APCA Lc ${step.lc.toFixed(0)}), which is legal for ${permittedUsage(step.wcagRatio)}. This hue will not carry this role against the ${mode} background — change the hue, or use the role differently.`,
         });
       }
 

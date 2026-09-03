@@ -150,6 +150,7 @@ describe("solver: APCA target with a WCAG floor", () => {
       backgroundY,
       backgroundIsLight: backgroundY > 0.4,
       requirement,
+      policy: "wcag-strict" as const,
     };
   };
 
