@@ -15,7 +15,7 @@ export type CvdType = (typeof CVD_TYPES)[number];
 export type CvdView = CvdType | "none" | "achromatopsia";
 
 export const CVD_LABELS: Record<CvdView, string> = {
-  none: "Normal vision",
+  none: "Normal",
   protanopia: "Protanopia",
   deuteranopia: "Deuteranopia",
   tritanopia: "Tritanopia",

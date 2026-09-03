@@ -110,6 +110,8 @@ body {
 .skip-link:focus {
   left: 12px;
   top: 12px;
+  /* Above the pinned header, which also sits in the top-left corner. */
+  z-index: 30;
 }
 
 .tnum {
@@ -124,30 +126,59 @@ body {
 
 /* ---------- header ---------- */
 
+/* Pinned, so the theme and colour-vision controls stay reachable while
+   reading down the page. Both change how every swatch below is rendered, and
+   scrolling back up to reach them is the thing that makes a simulation
+   toggle go unused.
+
+   Note that this is why the page has no `overflow-x: hidden` anywhere: that
+   blunt fix for horizontal overflow also silently disables position:sticky in
+   every ancestor. The overflow was fixed at its causes instead. */
 header.top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--paper);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding-bottom: 20px;
+  gap: 12px;
+  padding: 6px 0 5px;
   border-bottom: 1px solid var(--line);
-  margin-bottom: 24px;
-  flex-wrap: wrap;
+  margin-bottom: 20px;
 }
 
+/* One row at every width, around 42px tall. A pinned bar costs that space on
+   every screen for the whole session, so the title is the part that yields:
+   it shrinks and ellipsises while the two controls keep their full size. */
 header.top h1 {
-  font-size: 1.5rem;
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: -0.01em;
   margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-header.top p {
-  margin: 6px 0 0;
-  color: var(--muted);
-  font-size: 0.875rem;
-  max-width: 56ch;
+header.top .view-controls {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
 }
+
+/* The wrap that keeps the wider control groups off the page edge would make
+   this one two rows tall instead. */
+header.top .segmented {
+  flex-wrap: nowrap;
+}
+
+header.top .segmented button {
+  padding: 4px 9px;
+}
+
+/* ---------- view controls and segmented groups ---------- */
 
 .view-controls {
   display: flex;
@@ -156,23 +187,26 @@ header.top p {
   flex-wrap: wrap;
 }
 
-/* The two "how am I looking at this" controls, sized to sit together. */
 .view-select {
   font-family: var(--font-mono);
   font-size: 0.75rem;
-  padding: 6px 8px;
+  padding: 4px 8px;
   border-radius: 7px;
   border: 1px solid var(--line-strong);
   background: var(--panel-sunken);
   color: var(--ink);
+  /* Sized for the control, not for "Achromatopsia". The full name is spelled
+     out in the banner the moment a simulation is on, so a clipped label in
+     the closed picker costs nothing and keeps the bar on one row. */
+  width: 8.5rem;
   max-width: 100%;
 }
 
 .segmented {
   display: flex;
-  /* Five options (Normal/Prota/Deute/Trita/Achro) do not fit across a 320px
-     phone on one line, and an unwrapped flex row pushes the page wide rather
-     than breaking. */
+  /* The policy group's three long labels do not fit across a narrow screen,
+     and an unwrapped flex row pushes the page wide rather than breaking. The
+     header overrides this back to nowrap, where height matters more. */
   flex-wrap: wrap;
   gap: 2px;
   border: 1px solid var(--line-strong);
@@ -200,11 +234,72 @@ header.top p {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
 }
 
+.intro {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  max-width: 64ch;
+}
+
+/* The two controls need a fixed 270px, and the title wants 108px more than
+   that. Below roughly 480px they cannot share the row, and a title clipped to
+   "Col…" reads as broken rather than as a considered trade. The controls are
+   the reason the bar is pinned at all, so the title steps aside and stays in
+   the accessibility tree. The page still names itself in the tab, in the
+   document outline, and in the intro paragraph directly underneath. */
+@media (max-width: 479px) {
+  header.top h1 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  header.top {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 560px) {
+  /* Narrower gutters on a phone. The 24px desktop gutter is a fifth of a
+     320px screen, and here it was costing the title its own name. */
+  .shell {
+    padding: 0 16px 96px;
+  }
+
+  header.top {
+    gap: 8px;
+  }
+
+  header.top h1 {
+    font-size: 0.95rem;
+  }
+
+  .segmented {
+    font-size: 0.68rem;
+  }
+
+  .segmented button {
+    padding: 3px 7px;
+  }
+
+  .view-select {
+    font-size: 0.68rem;
+    padding: 4px 5px;
+    /* The row is nowrap now, so the select carries the slack: at 320px the
+       full 7.5rem put the bar 2px over the viewport. */
+    width: 6.25rem;
+  }
+}
+
 /* ---------- sections ---------- */
 
 section {
   margin-bottom: 36px;
-  scroll-margin-top: 16px;
+  /* Clear the pinned header, or an anchored jump lands underneath it. */
+  scroll-margin-top: 76px;
 }
 
 .eyebrow {

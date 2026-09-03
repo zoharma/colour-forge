@@ -162,14 +162,12 @@ export function App() {
       </a>
 
       <div className="shell">
+        {/* Only the title and the two view controls stay pinned. The
+            description belongs to the first read, not to every screen, and
+            keeping it in the bar would pin a couple of hundred pixels of
+            prose on a phone. */}
         <header className="top">
-          <div>
-            <h1>Colour Forge</h1>
-            <p>
-              Turn one colour into a full role set, tuned independently for light and dark, then check it
-              against APCA, WCAG 2.2 and colour-vision deficiency before it reaches a token file.
-            </p>
-          </div>
+          <h1>Colour Forge</h1>
           <div className="view-controls">
             <div className="segmented" role="group" aria-label="Page theme">
               {(["system", "light", "dark"] as ThemeChoice[]).map((choice) => (
@@ -186,6 +184,11 @@ export function App() {
             <CvdControl view={cvdView} onChange={setCvdView} />
           </div>
         </header>
+
+        <p className="intro">
+          Turn one colour into a full role set, tuned independently for light and dark, then check it
+          against APCA, WCAG 2.2 and colour-vision deficiency before it reaches a token file.
+        </p>
 
         {cvdView !== "none" && (
           <p className="banner" aria-live="polite">
@@ -295,7 +298,7 @@ export function App() {
 
             <p className="foot-note">{profile.provenance}</p>
 
-            <div className="mode-columns" id="roles">
+            <div className="mode-columns" id="roles" style={{ scrollMarginTop: 76 }}>
               {MODES.map((mode) => (
                 <ScalePanel
                   key={mode}
