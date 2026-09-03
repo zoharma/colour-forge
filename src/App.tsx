@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { auditDraft, draftAsIntent, separationRows } from "./color/audit";
+import { auditDraft, draftAsIntent, regenerateIntent, separationRows } from "./color/audit";
 import type { CvdView } from "./color/cvd";
 import {
   POLICY_DESCRIPTIONS,
@@ -125,6 +125,9 @@ export function App() {
 
   const pinSuggestion = useMemo(() => suggestPin(profile, seedHex), [profile, seedHex]);
 
+  // Placement only means anything for a role whose job is to be the colour.
+  const filledRole = profile.roles.find((r) => r.wantsSaturation);
+
   // The draft participates in the family checks as a live row, so a change to
   // the seed is reflected in the separation table immediately.
   const familyWithDraft = useMemo(() => {
@@ -148,6 +151,30 @@ export function App() {
 
   const setForeground = (mode: ModeKey, roleKey: string, label: string) =>
     setForegroundOverrides((prev) => ({ ...prev, [mode]: { ...prev[mode], [roleKey]: label } }));
+
+  /** Re-derive one family row at a different fill placement.
+   *
+   *  Under its own recorded recipe, not the controls currently on screen: a
+   *  row frozen under a relaxed policy or with a pinned role would otherwise
+   *  come back as a different colour entirely, which is not what changing one
+   *  dropdown should mean. */
+  const setRowPlacement = (index: number, placement: FillPlacement) => {
+    const row = familyWithDraft[index];
+    if (!row?.recipe) return;
+
+    // The draft's row is a live view of the controls above rather than a
+    // stored value, so its placement is changed at the source.
+    if (row.name === draft.name) {
+      setFillPlacement(placement);
+      return;
+    }
+
+    const rebuilt = regenerateIntent(profile, row, placement);
+    if (!rebuilt) return;
+    setFamily(
+      familyWithDraft.map((f, i) => (i === index ? rebuilt : f)).filter((f) => f.name !== draft.name),
+    );
+  };
 
   const snapshotDraft = () => {
     const asIntent = draftAsIntent(profile, draft);
@@ -275,8 +302,9 @@ export function App() {
               <PinControl profile={profile} pin={pin} suggestion={pinSuggestion} onChange={setPin} />
             </div>
 
+            {filledRole && (
             <div style={{ marginTop: 16 }}>
-              <span className="field-label">Filled roles take their colour from</span>
+              <span className="field-label">{filledRole.label} takes its colour from</span>
               <div className="segmented" role="group" aria-label="Fill placement">
                 {(["fixed", "cusp"] as FillPlacement[]).map((f) => (
                   <button
@@ -305,9 +333,13 @@ export function App() {
                     suggestion to give it a border — 1.4.11 asks for a perceivable boundary, not a
                     contrasting fill.
                   </>
-                )}
+                )}{" "}
+                This is a per-intent choice, not a setting for the palette: the family table below carries
+                the same control for every intent this tool generated, so a bright orange and a muted teal
+                can sit in one set.
               </p>
             </div>
+            )}
 
             <div style={{ marginTop: 16 }}>
               <span className="field-label">Where hue and WCAG 2.2 conflict</span>
@@ -382,6 +414,7 @@ export function App() {
               onChange={(next) => setFamily(next.filter((f) => f.name !== draft.name))}
               onReset={() => setFamily(profile.family)}
               onSnapshot={snapshotDraft}
+              onPlacementChange={setRowPlacement}
             />
             <div style={{ marginTop: 18 }}>
               <SeparationTable rows={rows} />

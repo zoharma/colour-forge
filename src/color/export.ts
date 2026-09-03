@@ -2,7 +2,7 @@
  *  convention. Output only — nothing is written back to any file. */
 
 import { chosenForeground, type Draft } from "./scale";
-import { WCAG_CRITERION, permittedUsage } from "./wcag";
+import { WCAG_CRITERION, meetsWcag, permittedUsage } from "./wcag";
 import { displayStep, type ModeKey, type Profile } from "../profiles/types";
 
 const substitute = (template: string, intent: string): string => template.replaceAll("{intent}", intent);
@@ -44,7 +44,22 @@ function blockFor(profile: Profile, draft: Draft, mode: ModeKey, options: Export
     const comment = options.includeMeasurements
       ? `  /* APCA Lc ${step.lc.toFixed(0)}, WCAG ${step.wcagRatio.toFixed(2)}:1 vs background */\n`
       : "";
+
+    // A fill that followed the hue is not the step the profile names, and the
+    // border it may now need is an implementation obligation rather than a
+    // value. Both have to survive the paste into a token file, so they are
+    // annotated unconditionally rather than only under includeMeasurements.
+    const moved =
+      role.wantsSaturation && draft.fillPlacement === "cusp" && step.stepIndex !== role.index[mode]
+        ? `  /* Follows this hue's peak: step ${displayStep(step.stepIndex)}, not the profile's step ${displayStep(role.index[mode])}.\n` +
+          (meetsWcag(step.wcagRatio, role.requirement)
+            ? `     Still ${step.wcagRatio.toFixed(2)}:1 against the page. */`
+            : `     ${step.wcagRatio.toFixed(2)}:1 against the page, under ${WCAG_CRITERION[role.requirement]}. Needs a border to\n` +
+              `     define its edge — 1.4.11 asks for a perceivable boundary, not a contrasting fill. */`)
+        : "";
+
     lines.push(...(belowAa ? [belowAa.trimEnd()] : []));
+    lines.push(...(moved ? [moved] : []));
     lines.push(`${comment}  ${substitute(role.cssVar, intent)}: ${step.hex};`);
 
     if (role.needsForeground && role.foregroundCssVar) {
@@ -120,6 +135,10 @@ export function exportJson(profile: Profile, draft: Draft, options: ExportOption
       string,
       {
         value: string;
+        /** Which step of the ramp the role actually took, which is not always
+         *  the one the profile declares — a filled role following the hue's
+         *  peak moves. */
+        step?: number;
         apcaLc: number;
         wcagRatio: number;
         verdict: string;
@@ -131,13 +150,21 @@ export function exportJson(profile: Profile, draft: Draft, options: ExportOption
     for (const role of profile.roles) {
       const step = draft[mode].roles[role.key];
       if (!step) continue;
+      // Reported against the role's own requirement, not the step's.
+      // A fill that followed the hue lands on a step that usually has no
+      // requirement of its own, and taking the step's answer would file a
+      // 1.75:1 fill as conformant because the position it moved onto was never
+      // asked to carry anything. Following the hue is a choice to go below,
+      // the same as the policy exemption, and is recorded as one.
+      const meetsRole = meetsWcag(step.wcagRatio, role.requirement);
       out[substitute(role.cssVar, intent)] = {
         value: step.hex,
+        step: displayStep(step.stepIndex),
         apcaLc: Number(step.lc.toFixed(1)),
         wcagRatio: Number(step.wcagRatio.toFixed(2)),
         verdict: step.verdict,
-        requirement: step.requirement,
-        conformance: step.conformance,
+        requirement: role.requirement,
+        conformance: meetsRole ? step.conformance : "below-by-choice",
         permittedUsage: permittedUsage(step.wcagRatio),
       };
       if (role.needsForeground && role.foregroundCssVar) {
@@ -161,6 +188,7 @@ export function exportJson(profile: Profile, draft: Draft, options: ExportOption
       profile: profile.id,
       seed: draft.seedHex,
       contrastPolicy: draft.policy,
+      fillPlacement: draft.fillPlacement,
       light: forMode("light"),
       dark: forMode("dark"),
     },

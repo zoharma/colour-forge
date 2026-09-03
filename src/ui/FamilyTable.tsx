@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
 import { simulateCvdHex, type CvdView } from "../color/cvd";
+import { FILL_PLACEMENT_LABELS, type FillPlacement } from "../color/scale";
 import { isValidHex, normaliseHex } from "../color/srgb";
+import { WCAG_CRITERION, meetsWcag, wcagRatioHex } from "../color/wcag";
 import type { ModeKey, Profile, SeededIntent } from "../profiles/types";
 
 interface Props {
@@ -12,12 +14,100 @@ interface Props {
   onChange: (family: SeededIntent[]) => void;
   onReset: () => void;
   onSnapshot: () => void;
+  /** Re-derive one row at a new fill placement. Only ever called for rows this
+   *  tool generated; a profile's shipped values have nothing to re-derive
+   *  from and the control is not offered for them. */
+  onPlacementChange: (index: number, placement: FillPlacement) => void;
+}
+
+/** One editable hex.
+ *
+ *  Uncontrolled-with-a-leash, and both halves are load-bearing. It cannot be
+ *  fully controlled because a half-typed hex is not a valid colour and would
+ *  be rejected keystroke by keystroke. It cannot be fully uncontrolled either,
+ *  because a row can now be rewritten underneath it — changing a placement
+ *  re-derives every value in the row — and a `defaultValue` would go on
+ *  showing the colour that used to be there while the swatch beside it showed
+ *  the new one. So it tracks the value it is displaying, except while someone
+ *  is typing into it. */
+function HexCell({
+  value,
+  label,
+  onCommit,
+}: {
+  value: string;
+  label: string;
+  onCommit: (value: string) => void;
+}) {
+  const [text, setText] = useState(value);
+  const editing = useRef(false);
+
+  useEffect(() => {
+    if (!editing.current) setText(value);
+  }, [value]);
+
+  return (
+    <input
+      className="hexfield"
+      type="text"
+      value={text}
+      placeholder="—"
+      aria-label={label}
+      onFocus={() => {
+        editing.current = true;
+      }}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={(e) => {
+        editing.current = false;
+        const next = e.target.value.trim();
+        // Anything that is not a colour goes back to what was there, rather
+        // than sitting in the field looking like it took.
+        if (next !== "" && !isValidHex(next)) {
+          setText(value);
+          return;
+        }
+        onCommit(next);
+      }}
+    />
+  );
 }
 
 /** The intents a new colour has to live alongside. Editable, because the
  *  shipped values are a starting point and the interesting question is often
  *  "what if we also changed that one". */
-export function FamilyTable({ profile, family, draftName, cvdView, onChange, onReset, onSnapshot }: Props) {
+export function FamilyTable({
+  profile,
+  family,
+  draftName,
+  cvdView,
+  onChange,
+  onReset,
+  onSnapshot,
+  onPlacementChange,
+}: Props) {
+  // Nothing to place if the profile has no role whose job is to be the
+  // colour, so the column does not appear at all rather than sitting there
+  // inert.
+  const filledRole = profile.roles.find((r) => r.wantsSaturation);
+  const hasFilledRole = Boolean(filledRole);
+  const filledRoleLabel = filledRole?.label ?? "Filled";
+
+  /** Which modes of a row have a fill that followed the hue past the point
+   *  where it can define its own edge.
+   *
+   *  The draft gets this as a finding; a family row has to get it here, or the
+   *  tool would be generating a value it knows is short of 1.4.11 and saying
+   *  nothing — which is not the same as reporting on a shipped value it merely
+   *  found that way. */
+  const needsBorder = (intent: SeededIntent): ModeKey[] => {
+    if (!filledRole || intent.recipe?.fillPlacement !== "cusp") return [];
+    return (["light", "dark"] as ModeKey[]).filter((mode) => {
+      const hex = intent[mode][filledRole.key];
+      if (!hex) return false;
+      return !meetsWcag(wcagRatioHex(hex, profile.modes[mode].background), filledRole.requirement);
+    });
+  };
+
   const roles = profile.separationRoles
     .map((key) => profile.roles.find((r) => r.key === key))
     .filter((r): r is NonNullable<typeof r> => Boolean(r));
@@ -102,6 +192,7 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
           <thead>
             <tr>
               <th scope="col">Intent</th>
+              {hasFilledRole && <th scope="col">{filledRoleLabel} from</th>}
               {(["light", "dark"] as ModeKey[]).map((mode) =>
                 roles.map((role) => (
                   <th scope="col" key={`${mode}-${role.key}`}>
@@ -179,6 +270,42 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
                     </span>
                   </td>
 
+                  {hasFilledRole && (
+                    <td>
+                      {intent.recipe ? (
+                        <select
+                          className="view-select placement-select"
+                          value={intent.recipe.fillPlacement}
+                          aria-label={`Fill placement for ${intent.name}`}
+                          onChange={(e) => onPlacementChange(index, e.target.value as FillPlacement)}
+                        >
+                          {(["fixed", "cusp"] as FillPlacement[]).map((f) => (
+                            <option key={f} value={f}>
+                              {FILL_PLACEMENT_LABELS[f]}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span
+                          className="readout"
+                          title="Shipped values, not generated here — there is nothing to re-derive them from."
+                        >
+                          shipped
+                        </span>
+                      )}
+                      {needsBorder(intent).map((mode) => (
+                        <span
+                          key={mode}
+                          className="pill warn"
+                          style={{ marginLeft: 4 }}
+                          title={`In ${mode} mode this fill is under ${WCAG_CRITERION[filledRole!.requirement]} against the page, so it cannot define its own edge. 1.4.11 asks for a perceivable boundary rather than a contrasting fill — give it a border and it conforms.`}
+                        >
+                          {mode.slice(0, 1)} · needs a border
+                        </span>
+                      ))}
+                    </td>
+                  )}
+
                   {(["light", "dark"] as ModeKey[]).map((mode) =>
                     roles.map((role) => {
                       const hex = intent[mode][role.key] ?? "";
@@ -192,13 +319,10 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
                           {isDraft ? (
                             <span className="readout">{hex || "—"}</span>
                           ) : (
-                            <input
-                              className="hexfield"
-                              type="text"
-                              defaultValue={hex}
-                              placeholder="—"
-                              aria-label={`${intent.name} ${role.label} in ${mode} mode`}
-                              onBlur={(e) => setHex(index, mode, role.key, e.target.value.trim())}
+                            <HexCell
+                              value={hex}
+                              label={`${intent.name} ${role.label} in ${mode} mode`}
+                              onCommit={(v) => setHex(index, mode, role.key, v)}
                             />
                           )}
                         </td>
@@ -231,6 +355,13 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
         Drag a row by its handle, or focus the handle and use the arrow keys, to reorder the set. The live
         draft stays last. Blank means the role has no shipped value for that intent — left empty rather than guessed, and
         skipped by the separation checks.
+        {hasFilledRole && (
+          <>
+            {" "}
+            Rows marked <b>shipped</b> are real tokens read out of the design system, so they are edited by hand
+            rather than re-derived; every other row was generated here and can be re-derived at either placement.
+          </>
+        )}
       </p>
     </>
   );

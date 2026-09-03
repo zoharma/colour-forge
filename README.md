@@ -83,6 +83,45 @@ that has to reach whoever implements it. The audit names what the ratio is
 legal for and what obligation comes with it, and the same note is written into
 the exported CSS so it survives the paste into a token file.
 
+## Where a filled role takes its colour from
+
+A yellow fill placed at the step a profile names for it is not yellow. It is
+brown. That is not a bug in the solver: the step is the right *contrast*
+position, and yellow simply has no chroma left down there.
+
+The reason is the gamut cusp: the lightness at which a hue holds its most
+chroma. Red's sits around L 0.58, yellow's around L 0.88. One fixed step
+cannot serve both, and the fill roles are the ones where it matters, because
+their whole job is to *be* the colour.
+
+So a filled role can take either placement:
+
+| Placement | What it does |
+| --- | --- |
+| **Fixed step** (default) | The step the profile names. Always clears the role's own requirement. Muddy for any hue whose cusp is light: yellow, lime, teal, the greens. |
+| **Follow the hue** | The step nearest this hue's own peak, up to three away. Hues that already peak mid-scale (red, pink, purple) do not move at all. |
+
+**It is a per-intent setting, not a palette-wide one.** That is not a hedge:
+Diamond's own shipped tokens place `warning` at Lc 47 and `highlight` at Lc 16
+while every other solid sits between Lc 62 and 87. They broke their own rule
+for exactly the two light-peaked hues. Placement is an editorial call about one
+colour, so the family table carries the control on every row the tool
+generated, and a bright orange can sit next to a muted teal in one set.
+
+Rows marked **shipped** have no control. Those values are real tokens read out
+of a design system rather than something this tool produced, and re-deriving
+them would replace measured values with a guess at how they might have been
+made.
+
+What following the hue costs is reported rather than hidden. A brighter fill
+can drop under 3:1 against the page, at which point it can no longer define
+its own edge. That is flagged in the audit for the draft, on the row for
+everything else, and annotated in the exported CSS. The flag says what it is:
+**1.4.11 asks for a perceivable boundary, not a contrasting fill.** Give it a
+border and it conforms; without one it does not. Which hues this catches is not
+a guess either. Orange at its peak still clears 3:1 and is not flagged, while
+a light green at its peak does not and is.
+
 ## Pinning the seed to a role
 
 Sometimes the colour is not a suggestion. A brand colour arrives fixed and the

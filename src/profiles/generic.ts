@@ -123,7 +123,15 @@ function muiDefaultFamily(profile: Omit<Profile, "family">): SeededIntent[] {
     const draft = buildDraft(withoutFamily, name, hex);
     const forMode = (mode: "light" | "dark"): Record<string, string> =>
       Object.fromEntries(Object.entries(draft[mode].roles).map(([key, step]) => [key, step.hex]));
-    return { name, light: forMode("light"), dark: forMode("dark") };
+    // These rows carry a recipe because this tool really did generate them,
+    // so the family can be re-derived under different settings the same way a
+    // draft can. Diamond's shipped intents deliberately have none.
+    return {
+      name,
+      recipe: { seed: hex, policy: "wcag-strict", fillPlacement: "fixed" },
+      light: forMode("light"),
+      dark: forMode("dark"),
+    };
   });
 }
 
