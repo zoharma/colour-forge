@@ -235,8 +235,8 @@ export function App() {
             </div>
 
             <div style={{ marginTop: 16 }}>
-              <span className="field-label">Material 500 — one-click seeds</span>
-              <SeedPicker seedHex={seedHex} cvdView={cvdView} onPick={commitHex} />
+              <span className="field-label">{profile.seedPaletteLabel} — one-click seeds</span>
+              <SeedPicker profile={profile} seedHex={seedHex} cvdView={cvdView} onPick={commitHex} />
             </div>
 
             <div style={{ marginTop: 16 }}>

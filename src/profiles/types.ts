@@ -86,9 +86,15 @@ export interface Profile {
   /** Existing intents to check a new colour against. Empty is valid — the
    *  family checks simply report that there is nothing to compare with. */
   family: SeededIntent[];
-  /** Foreground candidates offered for surface roles, beyond white/black and
-   *  the mode's own onSurface. Tinted candidates are generated. */
   cssHeader?: string;
+  /** One-click seeds offered for this profile, and what to call them.
+   *
+   *  Profile-specific because the useful starting set is: for a system the
+   *  tool does not know, the Material palette most work begins from; for one
+   *  it does, that system's own shipped intents, so "make me another one like
+   *  these" starts from the real value rather than a hex looked up elsewhere. */
+  seedPaletteLabel: string;
+  seedPalette: { name: string; hex: string }[];
 }
 
 export const roleByKey = (profile: Profile, key: string): RoleDef | undefined =>
