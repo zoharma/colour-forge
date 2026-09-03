@@ -114,6 +114,11 @@ export interface SolvedStep {
   chromaRetention: number;
   /** Signed APCA Lc against the mode background. */
   lc: number;
+  /** Where this step sits in the ramp, 0-based. Assigned by generateScale
+   *  rather than by the solver, so it is right however the step was
+   *  produced, and so a role that slides to a different step reports the
+   *  step it actually took rather than the one it was declared at. */
+  stepIndex: number;
   /** APCA Lc the profile asked for at this step. */
   targetLc: number;
   /** APCA Lc the solver actually aimed at. Differs from targetLc whenever hue
@@ -193,6 +198,7 @@ export function solveWithoutHueProtection(
     const solved = solveAtTarget(ctx, targetLc);
     return {
       ...solved,
+      stepIndex: -1,
       targetLc: idealTargetLc,
       usedTargetLc: targetLc,
       verdict,
@@ -236,6 +242,8 @@ export function stepAtLightness(
     hue: ctx.hue,
     chromaRetention: ctx.chroma > 0 ? chromaUsed / ctx.chroma : 1,
     lc: apcaFromY(apcaY(lin), ctx.backgroundY),
+    // Overwritten by generateScale once the ramp is assembled.
+    stepIndex: -1,
     targetLc: idealTargetLc,
     usedTargetLc: Math.abs(apcaFromY(apcaY(lin), ctx.backgroundY)),
     wcagRatio,
@@ -262,7 +270,7 @@ export interface StepContext {
 function solveAtTarget(
   ctx: StepContext,
   targetLc: number,
-): Omit<SolvedStep, "verdict" | "targetLc" | "conformance" | "usedTargetLc"> {
+): Omit<SolvedStep, "verdict" | "targetLc" | "conformance" | "usedTargetLc" | "stepIndex"> {
   const targetY = targetYForLc(ctx.backgroundY, targetLc, ctx.backgroundIsLight);
 
   // Relative luminance rises monotonically with OKLab L at fixed hue and
@@ -375,7 +383,7 @@ export function solveStep(ctx: StepContext, idealTargetLc: number): SolvedStep {
       : verdict === "below-both"
         ? "below-unavoidable"
         : "below-by-choice";
-    return { ...solved, targetLc: idealTargetLc, usedTargetLc: targetLc, verdict, conformance };
+    return { ...solved, stepIndex: -1, targetLc: idealTargetLc, usedTargetLc: targetLc, verdict, conformance };
   };
 
   const ideal = solveAtTarget(ctx, idealTargetLc);

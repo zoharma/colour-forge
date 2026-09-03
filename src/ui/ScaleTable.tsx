@@ -50,7 +50,9 @@ export function ScaleTable({ profile, draft, cvdView }: Props) {
               </th>
               {modes.map((mode) => {
                 const step = draft[mode].scale[i];
-                const roles = profile.roles.filter((r) => r.index[mode] === i);
+                const roles = profile.roles.filter(
+                  (r) => draft[mode].roles[r.key]?.stepIndex === i,
+                );
                 if (!step) return <td key={mode} colSpan={4} />;
                 return (
                   <ScaleCells

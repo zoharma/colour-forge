@@ -82,6 +82,27 @@ describe("fill placement", () => {
     }
   });
 
+  it("reports the step a role actually took, not the one it was declared at", () => {
+    // The label and the colour have to agree. They did not: the row printed
+    // the role's declared step while showing the colour of the step it had
+    // moved to, so a fill reading "step 7" was showing step 4's colour.
+    for (const { name, hex } of MATERIAL_500) {
+      for (const profile of [genericProfile, diamondProfile]) {
+        const key = profile === genericProfile ? "fill" : "solid";
+        for (const mode of ["light", "dark"] as const) {
+          const draft = buildDraft(profile, "x", hex, "wcag-strict", undefined, "cusp");
+          const scale = draft[mode].scale;
+          for (const role of profile.roles) {
+            const step = draft[mode].roles[role.key]!;
+            expect(step.stepIndex, `${profile.id}/${mode}/${role.key}/${name}`).toBeGreaterThanOrEqual(0);
+            expect(scale[step.stepIndex]!.hex, `${profile.id}/${mode}/${role.key}/${name}`).toBe(step.hex);
+          }
+          void key;
+        }
+      }
+    }
+  });
+
   it("says a bright fill needs a border, rather than silently shipping it", () => {
     const draft = buildDraft(genericProfile, "x", "#ffeb3b", "wcag-strict", undefined, "cusp");
     const findings = auditDraft(genericProfile, draft, [draftAsIntent(genericProfile, draft)]);

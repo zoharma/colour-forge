@@ -32,7 +32,8 @@ export function ScalePanel({ profile, draft, mode, cvdView, foregroundOverrides,
   // gets by on chroma, and a dark page inverts that. Declaration order made
   // the list read 1, 2, 3, 8, 5, 7, 9 in dark once the step numbers were
   // shown. Sorting by step turns that from a glitch into the point.
-  const rolesByStep = [...profile.roles].sort((a, b) => a.index[mode] - b.index[mode]);
+  const stepOf = (key: string) => result.roles[key]?.stepIndex ?? Number.MAX_SAFE_INTEGER;
+  const rolesByStep = [...profile.roles].sort((a, b) => stepOf(a.key) - stepOf(b.key));
 
   const background = shown(spec.background);
   const onSurface = shown(spec.onSurface);
@@ -52,7 +53,9 @@ export function ScalePanel({ profile, draft, mode, cvdView, foregroundOverrides,
 
       <div className="scale-strip" role="list" aria-label={`${mode} mode scale, ${result.scale.length} steps`}>
         {result.scale.map((step, i) => {
-          const roles = profile.roles.filter((r) => r.index[mode] === i).map((r) => r.label);
+          const roles = profile.roles
+            .filter((r) => result.roles[r.key]?.stepIndex === i)
+            .map((r) => r.label);
           // Each swatch picks its own label colour. One shared foreground goes
           // unreadable at whichever end of the ramp it does not suit, and the
           // dark end is exactly where the step numbers matter most. Measured
@@ -92,7 +95,7 @@ export function ScalePanel({ profile, draft, mode, cvdView, foregroundOverrides,
                 <span>
                   <span className="role-name">{role.label}</span>{" "}
                   <span className="role-meta">
-                    step {displayStep(role.index[mode])} · {step.hex}
+                    step {displayStep(step.stepIndex)} · {step.hex}
                   </span>
                 </span>
                 <span className="role-badges">

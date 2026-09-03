@@ -76,7 +76,9 @@ export function exportScaleCss(profile: Profile, draft: Draft, options: ExportOp
   const block = (mode: ModeKey) =>
     draft[mode].scale
       .map((step, i) => {
-        const roles = profile.roles.filter((r) => r.index[mode] === i).map((r) => r.label);
+        const roles = profile.roles
+          .filter((r) => draft[mode].roles[r.key]?.stepIndex === i)
+          .map((r) => r.label);
         const note = options.includeMeasurements
           ? `  /* ${roles.length ? roles.join(", ") : "spare"} — APCA Lc ${step.lc.toFixed(0)}, WCAG ${step.wcagRatio.toFixed(2)}:1 */\n`
           : "";

@@ -235,7 +235,12 @@ export function generateScale(
     return solveWithoutHueProtection(ctx, curves.targetLc[i] ?? 0, target);
   });
 
-  return enforceRampSpacing(secondPass, contexts, backgroundIsLight);
+  // Stamped last, so every step knows its own position no matter which path
+  // produced it: solved, re-solved, spaced or pinned.
+  return enforceRampSpacing(secondPass, contexts, backgroundIsLight).map((step, i) => ({
+    ...step,
+    stepIndex: i,
+  }));
 }
 
 export type RoleSet = Record<string, SolvedStep>;

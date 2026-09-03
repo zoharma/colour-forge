@@ -92,6 +92,7 @@ export function pinnedStep(
     hue: H,
     chromaRetention: 1,
     lc: apcaHex(seedHex, spec.background),
+    stepIndex: -1,
     targetLc,
     usedTargetLc: Math.abs(apcaHex(seedHex, spec.background)),
     wcagRatio,
