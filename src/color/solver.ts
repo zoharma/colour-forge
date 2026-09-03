@@ -85,6 +85,9 @@ export type ContrastVerdict =
   /** No lightness for this hue satisfies WCAG 2.2 for this usage. Needs a
    *  different hue, a different background, or a different role. */
   | "below-both"
+  /** Held apart from its neighbour so the ramp stays a ramp. See
+   *  MIN_STEP_LIGHTNESS_GAP in scale.ts. */
+  | "ramp-spaced"
   /** Not solved at all: a person pinned this exact colour to this role. The
    *  measurements are still real, and still reported — pinning decides the
    *  colour, it does not exempt it from being checked. */
@@ -113,6 +116,11 @@ export interface SolvedStep {
   lc: number;
   /** APCA Lc the profile asked for at this step. */
   targetLc: number;
+  /** APCA Lc the solver actually aimed at. Differs from targetLc whenever hue
+   *  protection eased off or a WCAG floor pushed back, and the ramp pass needs
+   *  it: protection applied to twelve steps independently can leave their
+   *  used targets out of order even though the profile's were not. */
+  usedTargetLc: number;
   wcagRatio: number;
   /** What the role's usage requires. */
   requirement: WcagRequirement;
@@ -168,6 +176,76 @@ const MAX_TARGET_LC = 108;
 
 const BISECTION_STEPS = 24;
 
+/** Solve a step to its target with the WCAG floor honoured but hue protection
+ *  skipped, so the step lands where the curve intended and gives up chroma
+ *  instead of position. The ramp pass falls back to this when protection has
+ *  pushed a step out of order: the protection was buying chroma at the cost of
+ *  the one thing a scale is for. */
+export function solveWithoutHueProtection(
+  ctx: StepContext,
+  idealTargetLc: number,
+  aimAt: number = idealTargetLc,
+): SolvedStep {
+  const required = effectiveRequirement(ctx.requirement, ctx.policy);
+  const ideal = solveAtTarget(ctx, aimAt);
+
+  const finish = (targetLc: number, verdict: ContrastVerdict): SolvedStep => {
+    const solved = solveAtTarget(ctx, targetLc);
+    return {
+      ...solved,
+      targetLc: idealTargetLc,
+      usedTargetLc: targetLc,
+      verdict,
+      conformance: meetsWcag(solved.wcagRatio, ctx.requirement)
+        ? "meets"
+        : verdict === "below-both"
+          ? "below-unavoidable"
+          : "below-by-choice",
+    };
+  };
+
+  if (!clearsWcag(ideal, required)) {
+    const bound = lowestTargetClearingWcag(ctx, aimAt, MAX_TARGET_LC);
+    if (bound === null) return finish(MAX_TARGET_LC, "below-both");
+    return finish(bound, "wcag-bound");
+  }
+  return finish(aimAt, "ramp-spaced");
+}
+
+/** Rebuild a step at an explicit lightness, keeping its hue and chroma.
+ *
+ *  The ramp pass needs this: solving every step independently for contrast
+ *  can put neighbours at the same lightness, or out of order, because APCA Lc
+ *  depends on chroma as well as lightness. Two steps can therefore hit
+ *  different contrast targets while looking identical. Position in the ramp is
+ *  the thing a scale is *for*, so where the two disagree, position wins and
+ *  chroma gives way. */
+export function stepAtLightness(
+  ctx: StepContext,
+  L: number,
+  idealTargetLc: number,
+  verdict: ContrastVerdict,
+): SolvedStep {
+  const { lin, chromaUsed } = oklchToGamutSafeLinear(L, ctx.chroma, ctx.hue);
+  const hex = rgb255ToHex(linearToRgb255(lin));
+  const wcagRatio = wcagRatioHex(hex, ctx.backgroundHex);
+  return {
+    hex,
+    L,
+    chroma: chromaUsed,
+    hue: ctx.hue,
+    chromaRetention: ctx.chroma > 0 ? chromaUsed / ctx.chroma : 1,
+    lc: apcaFromY(apcaY(lin), ctx.backgroundY),
+    targetLc: idealTargetLc,
+    usedTargetLc: Math.abs(apcaFromY(apcaY(lin), ctx.backgroundY)),
+    wcagRatio,
+    requirement: ctx.requirement,
+    effectiveRequirement: effectiveRequirement(ctx.requirement, ctx.policy),
+    conformance: meetsWcag(wcagRatio, ctx.requirement) ? "meets" : "below-by-choice",
+    verdict,
+  };
+}
+
 export interface StepContext {
   hue: number;
   /** Chroma requested at this step, before gamut mapping. */
@@ -184,7 +262,7 @@ export interface StepContext {
 function solveAtTarget(
   ctx: StepContext,
   targetLc: number,
-): Omit<SolvedStep, "verdict" | "targetLc" | "conformance"> {
+): Omit<SolvedStep, "verdict" | "targetLc" | "conformance" | "usedTargetLc"> {
   const targetY = targetYForLc(ctx.backgroundY, targetLc, ctx.backgroundIsLight);
 
   // Relative luminance rises monotonically with OKLab L at fixed hue and
@@ -297,7 +375,7 @@ export function solveStep(ctx: StepContext, idealTargetLc: number): SolvedStep {
       : verdict === "below-both"
         ? "below-unavoidable"
         : "below-by-choice";
-    return { ...solved, targetLc: idealTargetLc, verdict, conformance };
+    return { ...solved, targetLc: idealTargetLc, usedTargetLc: targetLc, verdict, conformance };
   };
 
   const ideal = solveAtTarget(ctx, idealTargetLc);
@@ -367,6 +445,7 @@ export function solveStep(ctx: StepContext, idealTargetLc: number): SolvedStep {
 }
 
 export const VERDICT_LABELS: Record<ContrastVerdict, string> = {
+  "ramp-spaced": "Spaced away from its neighbour",
   pinned: "Pinned to the seed colour",
   "apca-met": "APCA target met",
   "hue-protected": "Eased off APCA to keep the hue",
@@ -375,6 +454,8 @@ export const VERDICT_LABELS: Record<ContrastVerdict, string> = {
 };
 
 export const VERDICT_EXPLANATIONS: Record<ContrastVerdict, string> = {
+  "ramp-spaced":
+    "Solving for contrast alone put this step at almost the same lightness as its neighbour, or past it. It has been pushed further from the background so the ramp reads as ordered steps. That only ever adds contrast, never removes it.",
   pinned:
     "This is the seed colour itself, placed here because you pinned it. Everything else in this mode was solved around it. The numbers beside it are measured, not targeted — if they fall short, the pinned colour does not suit this role.",
   "apca-met": "Reached the profile's APCA target with the colour's chroma intact.",

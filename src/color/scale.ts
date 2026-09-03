@@ -3,7 +3,14 @@
 import { apcaHex, apcaYHex } from "./apca";
 import { hexToOklch } from "./oklch";
 import { pinnedCurves, pinnedStep, type PinSpec } from "./pin";
-import { solveStep, type ContrastPolicy, type SolvedStep, type StepContext } from "./solver";
+import {
+  solveStep,
+  solveWithoutHueProtection,
+  stepAtLightness,
+  type ContrastPolicy,
+  type SolvedStep,
+  type StepContext,
+} from "./solver";
 import { WCAG_MINIMUM, meetsWcag, wcagRatioHex, type WcagRequirement } from "./wcag";
 import type { ModeKey, Profile, RoleDef } from "../profiles/types";
 
@@ -26,6 +33,82 @@ function requirementsByIndex(profile: Profile, mode: ModeKey): WcagRequirement[]
     const i = role.index[mode];
     if (i >= 0 && i < out.length) out[i] = strictest(out[i] ?? "none", role.requirement);
   }
+  return out;
+}
+
+/** Smallest lightness difference that reads as a distinct step.
+ *
+ *  Steps are solved for contrast, and APCA Lc depends on chroma as well as
+ *  lightness, so a step can reach a higher contrast target than its neighbour
+ *  while sitting at the same lightness. On the shipped curves, generic light
+ *  steps 5, 6 and 7 of a blue came out at L 0.659, 0.650 and 0.624: three
+ *  swatches nobody could tell apart.
+ *
+ *  0.035, against an average spacing of about 0.065 across the twelve steps,
+ *  so it only binds where the ramp had genuinely collapsed. */
+export const MIN_STEP_LIGHTNESS_GAP = 0.035;
+
+/** Smallest gap between the contrast targets two adjacent steps are solved
+ *  at, once hue protection has had its say. */
+const MIN_STEP_TARGET_GAP = 4;
+
+/** Hue protection is a judgement about a *hue*, but it was being applied as
+ *  twelve independent judgements about steps, and the steps disagreed.
+ *
+ *  Each step eases its own target by as much as its own chroma allows, and
+ *  the middle of the ramp asks for the most chroma, so the middle eased
+ *  hardest. A yellow's step 6 relaxed all the way to L 0.908 while its
+ *  neighbours held at 0.658, leaving the ramp climbing back toward the
+ *  background with steps 5 and 7 the same colour.
+ *
+ *  So the easing is reconciled across the ramp before any colour is fixed:
+ *  the used targets are forced back into increasing order with a minimum gap.
+ *  The tail eases off together and keeps its shape, rather than each step
+ *  bargaining alone and the set ending up out of order. */
+function orderedTargets(steps: SolvedStep[]): number[] {
+  const targets = steps.map((step) => Math.abs(step.usedTargetLc));
+
+  for (let i = 1; i < targets.length; i++) {
+    const previous = targets[i - 1] ?? 0;
+    const current = targets[i] ?? 0;
+    // Never pull a step below what it already achieved; only push it up to
+    // clear its neighbour, so this cannot reduce anyone's contrast.
+    if (current < previous + MIN_STEP_TARGET_GAP) {
+      targets[i] = Math.min(108, previous + MIN_STEP_TARGET_GAP);
+    }
+  }
+
+  return targets;
+}
+
+/** Last resort for collisions the target ordering cannot see: two steps whose
+ *  targets differ properly but which still land at the same lightness because
+ *  their chroma differs. Always moves away from the background, so it can only
+ *  add contrast and can never undo a WCAG floor. */
+function enforceRampSpacing(
+  steps: SolvedStep[],
+  contexts: StepContext[],
+  backgroundIsLight: boolean,
+): SolvedStep[] {
+  const out = [...steps];
+
+  for (let i = 1; i < out.length; i++) {
+    const previous = out[i - 1];
+    const current = out[i];
+    const ctx = contexts[i];
+    if (!previous || !current || !ctx) continue;
+    // A pinned step is the one thing here that a person placed deliberately.
+    if (current.verdict === "pinned") continue;
+
+    const limit = backgroundIsLight
+      ? previous.L - MIN_STEP_LIGHTNESS_GAP
+      : previous.L + MIN_STEP_LIGHTNESS_GAP;
+    const violates = backgroundIsLight ? current.L > limit : current.L < limit;
+    if (!violates) continue;
+
+    out[i] = stepAtLightness(ctx, Math.min(1, Math.max(0, limit)), current.targetLc, "ramp-spaced");
+  }
+
   return out;
 }
 
@@ -54,25 +137,34 @@ export function generateScale(
       ? { targetLc: modeSpec.targetLc, chromaMultiplier: modeSpec.chromaMultiplier }
       : pinnedCurves(profile, mode, seedHex, pinnedIndex);
 
-  return Array.from({ length: profile.scaleSize }, (_, i) => {
-    const requirement = requirements[i] ?? "none";
+  const contexts: StepContext[] = Array.from({ length: profile.scaleSize }, (_, i) => ({
+    hue: H,
+    chroma: C * (curves.chromaMultiplier[i] ?? 1),
+    backgroundHex: modeSpec.background,
+    backgroundY,
+    backgroundIsLight,
+    requirement: requirements[i] ?? "none",
+    policy,
+  }));
+
+  const firstPass = contexts.map((ctx, i) => {
     const targetLc = curves.targetLc[i] ?? 0;
-
-    if (i === pinnedIndex) {
-      return pinnedStep(profile, mode, seedHex, targetLc, requirement);
-    }
-
-    const ctx: StepContext = {
-      hue: H,
-      chroma: C * (curves.chromaMultiplier[i] ?? 1),
-      backgroundHex: modeSpec.background,
-      backgroundY,
-      backgroundIsLight,
-      requirement,
-      policy,
-    };
-    return solveStep(ctx, targetLc);
+    return i === pinnedIndex
+      ? pinnedStep(profile, mode, seedHex, targetLc, ctx.requirement)
+      : solveStep(ctx, targetLc);
   });
+
+  // Reconcile the easing across the ramp, then re-solve anything it moved.
+  const reconciled = orderedTargets(firstPass);
+  const secondPass = firstPass.map((step, i) => {
+    const ctx = contexts[i];
+    const target = reconciled[i];
+    if (!ctx || target === undefined || i === pinnedIndex) return step;
+    if (Math.abs(target - Math.abs(step.usedTargetLc)) < 0.01) return step;
+    return solveWithoutHueProtection(ctx, curves.targetLc[i] ?? 0, target);
+  });
+
+  return enforceRampSpacing(secondPass, contexts, backgroundIsLight);
 }
 
 export type RoleSet = Record<string, SolvedStep>;

@@ -93,6 +93,7 @@ export function pinnedStep(
     chromaRetention: 1,
     lc: apcaHex(seedHex, spec.background),
     targetLc,
+    usedTargetLc: Math.abs(apcaHex(seedHex, spec.background)),
     wcagRatio,
     requirement,
     // Nothing was eased: the colour was given, not derived.
