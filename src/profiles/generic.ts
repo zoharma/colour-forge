@@ -79,6 +79,7 @@ const base: Omit<Profile, "family"> = {
     },
     {
       key: "fill",
+      wantsSaturation: true,
       label: "Fill",
       index: { light: 6, dark: 4 },
       usage: "surface",

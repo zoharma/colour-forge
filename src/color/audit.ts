@@ -58,6 +58,33 @@ function contrastFindings(profile: Profile, draft: Draft): Finding[] {
       const step = draft[mode].roles[role.key];
       if (!step) continue;
 
+      // A role that slid to the hue's cusp is measured against what its own
+      // usage requires, not against whatever the step it landed on happened
+      // to be asked for. Without this the check disappears entirely: the
+      // step it moves onto is usually an unnamed one with no requirement of
+      // its own, so nothing would notice a 1.5:1 fill.
+      //
+      // Reported as a warning rather than a blocker, and phrased as what it
+      // is: 1.4.11 wants a perceivable boundary, not necessarily a
+      // high-contrast fill, so a border satisfies it. That is a suggestion
+      // for a person to take or leave, not a rule.
+      if (
+        role.wantsSaturation &&
+        draft.fillPlacement === "cusp" &&
+        role.requirement !== "none" &&
+        !meetsWcag(step.wcagRatio, role.requirement)
+      ) {
+        findings.push({
+          id: `fill-placement-${mode}-${role.key}`,
+          severity: "warning",
+          category: "contrast",
+          mode,
+          role: role.key,
+          message: `${role.label} is at its brightest here, and only ${step.wcagRatio.toFixed(2)}:1 against the page.`,
+          detail: `This hue peaks in lightness, so following it gives a colour that is properly ${draft.name} rather than a muddy version of it, but the fill can no longer define its own edge. 1.4.11 asks for a perceivable boundary rather than a contrasting fill, so give it a border in the boundary role and it conforms. Without one it does not. Text on the fill is unaffected and is checked separately.`,
+        });
+      }
+
       // A pinned colour that cannot carry the role it was pinned to is the
       // single most useful thing the tool can say, so it is separated from the
       // ordinary policy exemption: nothing was traded away here, the colour

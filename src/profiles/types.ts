@@ -27,6 +27,12 @@ export interface RoleDef {
   cssVar: string;
   /** CSS custom property for the paired foreground, when needsForeground. */
   foregroundCssVar?: string;
+  /** True for a role whose job is to *be* the colour: a filled action, a
+   *  solid badge. Only these follow the hue's cusp when that placement is
+   *  switched on. Text never can, because a bright yellow is unreadable as
+   *  text at any hue, and a wash never should, because its whole point is to
+   *  stay quiet. */
+  wantsSaturation?: boolean;
   /** How far this role must stay from the same role on other intents, on the
    *  0–441 RGB scale under simulated colour-vision deficiency.
    *

@@ -91,3 +91,43 @@ export function hueDelta(h1: number, h2: number): number {
   const d = Math.abs(h1 - h2) % 360;
   return d > 180 ? 360 - d : d;
 }
+
+/** The lightness at which a hue reaches its greatest chroma in sRGB: its
+ *  gamut cusp, and the point where the hue is most itself.
+ *
+ *  It moves enormously with hue. Red peaks around L 0.58, yellow around 0.88.
+ *  A chroma curve that peaks at a fixed step therefore asks red for its best
+ *  colour at exactly the right lightness and asks yellow for its best colour
+ *  where yellow has none left, which is where the murky mid-yellows come
+ *  from. */
+export interface Cusp {
+  L: number;
+  C: number;
+}
+
+const cuspCache = new Map<number, Cusp>();
+
+export function hueCusp(hue: number): Cusp {
+  // Hue is continuous but the cusp moves slowly, so cache to the degree. The
+  // scale is regenerated on every keystroke and this would otherwise be the
+  // most expensive thing in the render.
+  const key = Math.round(((hue % 360) + 360) % 360);
+  const cached = cuspCache.get(key);
+  if (cached) return cached;
+
+  const search = (from: number, to: number, stepSize: number): Cusp => {
+    let best: Cusp = { L: from, C: -1 };
+    for (let L = from; L <= to; L += stepSize) {
+      // Ask for far more chroma than sRGB holds; what comes back is the
+      // gamut boundary at this lightness.
+      const { chromaUsed } = oklchToGamutSafeLinear(L, 0.5, key);
+      if (chromaUsed > best.C) best = { L, C: chromaUsed };
+    }
+    return best;
+  };
+
+  const coarse = search(0.05, 0.98, 0.02);
+  const refined = search(Math.max(0.02, coarse.L - 0.02), Math.min(0.99, coarse.L + 0.02), 0.004);
+  cuspCache.set(key, refined);
+  return refined;
+}

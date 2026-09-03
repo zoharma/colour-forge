@@ -348,9 +348,13 @@ describe("audit", () => {
   });
 
   it("clears a colour that collides with nothing in the family", () => {
-    // A magenta, in the one part of the wheel Diamond's nine intents leave
-    // free. Nothing to flag, so nothing should be flagged.
-    const draft = buildDraft(diamondProfile, "draft", "#a4479e");
+    // Diamond's nine intents leave very little of the wheel free: sweeping
+    // every 5 degrees, this is the only hue with no collision at all. The
+    // seed used to be #a4479e, which cleared the floor by 0.9 and stopped
+    // clearing it once the chroma curve started following each hue's cusp.
+    // Worth knowing why: more chroma in a magenta means more red, protanopia
+    // removes red, so a *more* saturated magenta collapses closer to blue.
+    const draft = buildDraft(diamondProfile, "draft", "#b33f7f");
     const family = [...diamondProfile.family, draftAsIntent(diamondProfile, draft)];
     const blockers = auditDraft(diamondProfile, draft, family).filter((f) => f.severity === "blocker");
     expect(blockers.map((b) => b.message)).toEqual([]);
@@ -361,7 +365,7 @@ describe("audit", () => {
     // of every other one — Diamond ships tertiary and brand containers 3
     // apart. Holding washes to the same floor as meaning-bearing colour
     // condemns the whole system and buries the findings that matter.
-    const draft = buildDraft(diamondProfile, "draft", "#a4479e");
+    const draft = buildDraft(diamondProfile, "draft", "#b33f7f");
     const family = [...diamondProfile.family, draftAsIntent(diamondProfile, draft)];
     const containerBlockers = auditDraft(diamondProfile, draft, family).filter(
       (f) => f.category === "cvd" && f.role === "container" && f.severity === "blocker",

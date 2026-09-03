@@ -90,6 +90,7 @@ export const diamondProfile: Profile = {
     },
     {
       key: "solid",
+      wantsSaturation: true,
       label: "Solid",
       index: { light: 6, dark: 4 },
       usage: "surface",

@@ -77,14 +77,33 @@ export function WcagBadge({ ratio, requirement }: { ratio: number; requirement: 
 /** Which of the three measures decided this colour. The whole point of
  *  showing it is that "washed out" and "washed out for a reason" look
  *  identical in a swatch. */
+/** Records rather than a ternary chain, so adding a verdict is a type error
+ *  here instead of silently falling through to "fails". It did exactly that:
+ *  `ramp-spaced` and `pinned` both rendered as a red "fails" badge, including
+ *  on roles with no contrast requirement to fail. */
+const VERDICT_SHORT: Record<ContrastVerdict, string | null> = {
+  "apca-met": null,
+  "ramp-spaced": "spaced",
+  pinned: "pinned",
+  "hue-protected": "hue held",
+  "wcag-bound": "WCAG held",
+  "below-both": "fails",
+};
+
+const VERDICT_TONE: Record<ContrastVerdict, Tone> = {
+  "apca-met": "neutral",
+  "ramp-spaced": "neutral",
+  pinned: "neutral",
+  "hue-protected": "warn",
+  "wcag-bound": "warn",
+  "below-both": "bad",
+};
+
 export function VerdictBadge({ verdict }: { verdict: ContrastVerdict }) {
-  const tone: Tone =
-    verdict === "apca-met" ? "neutral" : verdict === "hue-protected" ? "warn" : verdict === "wcag-bound" ? "warn" : "bad";
-  const short =
-    verdict === "apca-met" ? "APCA" : verdict === "hue-protected" ? "hue held" : verdict === "wcag-bound" ? "WCAG held" : "fails";
-  if (verdict === "apca-met") return null;
+  const short = VERDICT_SHORT[verdict];
+  if (short === null) return null;
   return (
-    <Pill tone={tone} title={`${VERDICT_LABELS[verdict]} — ${VERDICT_EXPLANATIONS[verdict]}`}>
+    <Pill tone={VERDICT_TONE[verdict]} title={`${VERDICT_LABELS[verdict]} — ${VERDICT_EXPLANATIONS[verdict]}`}>
       {short}
     </Pill>
   );

@@ -7,7 +7,7 @@ import {
   POLICY_LABELS,
   type ContrastPolicy,
 } from "./color/solver";
-import { buildDraft } from "./color/scale";
+import { buildDraft, FILL_PLACEMENT_LABELS, type FillPlacement } from "./color/scale";
 import { suggestPin, type PinSpec } from "./color/pin";
 import { isValidHex, normaliseHex } from "./color/srgb";
 import { DEFAULT_PROFILE_ID, PROFILES, findProfile, type ModeKey, type SeededIntent } from "./profiles";
@@ -36,6 +36,7 @@ function readUrlState() {
     name: params.get("name") ?? "draft",
     policy: (params.get("policy") as ContrastPolicy | null) ?? "wcag-strict",
     pin: parsePin(params.get("pin")),
+    fillPlacement: (params.get("fill") as FillPlacement | null) ?? "fixed",
     // Not one of the example intents: seeding on top of one opens the tool
     // onto a wall of collisions with itself, which reads as the tool being
     // broken rather than as the finding it is.
@@ -68,6 +69,7 @@ export function App() {
   const [policy, setPolicy] = useState<ContrastPolicy>(initial.policy);
   const [showScale, setShowScale] = useState(false);
   const [pin, setPin] = useState<PinSpec | undefined>(initial.pin);
+  const [fillPlacement, setFillPlacement] = useState<FillPlacement>(initial.fillPlacement);
   const [hexDraft, setHexDraft] = useState(initial.seedHex);
   const [cvdView, setCvdView] = useState<CvdView>(() => readStored<CvdView>("cf-cvd", "none"));
   const [theme, setTheme] = useState<ThemeChoice>(() => readStored<ThemeChoice>("cf-theme", "system"));
@@ -112,12 +114,13 @@ export function App() {
   useEffect(() => {
     const params = new URLSearchParams({ profile: profileId, name, seed: seedHex, policy });
     if (pin) params.set("pin", `${pin.mode}:${pin.roleKey}`);
+    if (fillPlacement !== "fixed") params.set("fill", fillPlacement);
     window.history.replaceState(null, "", `#${params.toString()}`);
-  }, [profileId, name, seedHex, policy, pin]);
+  }, [profileId, name, seedHex, policy, pin, fillPlacement]);
 
   const draft = useMemo(
-    () => buildDraft(profile, name.trim() || "draft", seedHex, policy, pin),
-    [profile, name, seedHex, policy, pin],
+    () => buildDraft(profile, name.trim() || "draft", seedHex, policy, pin, fillPlacement),
+    [profile, name, seedHex, policy, pin, fillPlacement],
   );
 
   const pinSuggestion = useMemo(() => suggestPin(profile, seedHex), [profile, seedHex]);
@@ -270,6 +273,40 @@ export function App() {
             <div style={{ marginTop: 16 }}>
               <span className="field-label">Seed placement</span>
               <PinControl profile={profile} pin={pin} suggestion={pinSuggestion} onChange={setPin} />
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <span className="field-label">Filled roles take their colour from</span>
+              <div className="segmented" role="group" aria-label="Fill placement">
+                {(["fixed", "cusp"] as FillPlacement[]).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    aria-pressed={fillPlacement === f}
+                    onClick={() => setFillPlacement(f)}
+                  >
+                    {FILL_PLACEMENT_LABELS[f]}
+                  </button>
+                ))}
+              </div>
+              <p className="policy-note">
+                {fillPlacement === "fixed" ? (
+                  <>
+                    The step the profile names, which always clears the role's own contrast
+                    requirement. Hues that peak light — yellow, lime, teal, the greens — come out muddy
+                    at that step, because it asks them for their best colour at the one lightness they
+                    have none left.
+                  </>
+                ) : (
+                  <>
+                    The step nearest this hue's own peak, so a yellow fill is actually yellow. Hues that
+                    already peak mid-scale, like red, do not move at all. Where the brighter colour
+                    drops under 3:1 the fill can no longer define its own edge, so it is flagged with a
+                    suggestion to give it a border — 1.4.11 asks for a perceivable boundary, not a
+                    contrasting fill.
+                  </>
+                )}
+              </p>
             </div>
 
             <div style={{ marginTop: 16 }}>

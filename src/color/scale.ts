@@ -1,7 +1,7 @@
 /** Turning one seed colour into a full role set, per mode. */
 
 import { apcaHex, apcaYHex } from "./apca";
-import { hexToOklch } from "./oklch";
+import { hexToOklch, hueCusp } from "./oklch";
 import { pinnedCurves, pinnedStep, type PinSpec } from "./pin";
 import {
   solveStep,
@@ -112,6 +112,63 @@ function enforceRampSpacing(
   return out;
 }
 
+/** Slide the chroma curve so its peak sits on the hue's own cusp.
+ *
+ *  The profile's multiplier array says "ask for the most chroma around here",
+ *  and "here" is a step index, which silently assumes every hue peaks at the
+ *  same lightness. They do not: red peaks at L 0.58, yellow at 0.88. So the
+ *  curve asks yellow for its most saturated colour at the one lightness
+ *  yellow cannot deliver it, and asks for a pale wash at the lightness where
+ *  yellow is at its best. That is where the muddy mid-yellows come from.
+ *
+ *  The fix keeps the curve's shape and both its ends, and moves only where
+ *  the peak falls: a piecewise-linear remap of the index domain. A hue whose
+ *  cusp already sits near the original peak, like red, is left alone.
+ *
+ *  `stepLightness` is the ramp's own lightness per step, measured from a
+ *  first solve rather than assumed, since it depends on the background. */
+function cuspAlignedChroma(multipliers: number[], stepLightness: number[], cuspL: number): number[] {
+  const last = multipliers.length - 1;
+  if (last < 2) return multipliers;
+
+  let peak = 0;
+  multipliers.forEach((m, i) => {
+    if (m > (multipliers[peak] ?? 0)) peak = i;
+  });
+
+  // Which step sits closest to the cusp is where the peak belongs.
+  let desired = peak;
+  let closest = Number.POSITIVE_INFINITY;
+  stepLightness.forEach((L, i) => {
+    const d = Math.abs(L - cuspL);
+    if (d < closest) {
+      closest = d;
+      desired = i;
+    }
+  });
+
+  // Never push the peak onto the very ends: the extremes of a ramp are a
+  // near-white and a near-black whatever the hue, and a peak there would ask
+  // for chroma that cannot exist and flatten the middle.
+  desired = Math.min(last - 1, Math.max(1, desired));
+  if (desired === peak) return multipliers;
+
+  const sample = (position: number): number => {
+    const clamped = Math.min(last, Math.max(0, position));
+    const low = Math.floor(clamped);
+    const high = Math.min(last, low + 1);
+    const t = clamped - low;
+    return (multipliers[low] ?? 0) * (1 - t) + (multipliers[high] ?? 0) * t;
+  };
+
+  return multipliers.map((_, i) => {
+    // Map this step back onto the original curve, with the peak moved.
+    const source =
+      i <= desired ? (peak * i) / desired : peak + ((last - peak) * (i - desired)) / (last - desired);
+    return sample(source);
+  });
+}
+
 export function generateScale(
   profile: Profile,
   mode: ModeKey,
@@ -137,9 +194,23 @@ export function generateScale(
       ? { targetLc: modeSpec.targetLc, chromaMultiplier: modeSpec.chromaMultiplier }
       : pinnedCurves(profile, mode, seedHex, pinnedIndex);
 
-  const contexts: StepContext[] = Array.from({ length: profile.scaleSize }, (_, i) => ({
+  // Solve once with the profile's own curve to learn where each step falls in
+  // lightness, then align the chroma peak to the hue and solve again.
+  const probeContexts: StepContext[] = Array.from({ length: profile.scaleSize }, (_, i) => ({
     hue: H,
     chroma: C * (curves.chromaMultiplier[i] ?? 1),
+    backgroundHex: modeSpec.background,
+    backgroundY,
+    backgroundIsLight,
+    requirement: requirements[i] ?? "none",
+    policy,
+  }));
+  const probeLightness = probeContexts.map((ctx, i) => solveStep(ctx, curves.targetLc[i] ?? 0).L);
+  const alignedChroma = cuspAlignedChroma(curves.chromaMultiplier, probeLightness, hueCusp(H).L);
+
+  const contexts: StepContext[] = Array.from({ length: profile.scaleSize }, (_, i) => ({
+    hue: H,
+    chroma: C * (alignedChroma[i] ?? 1),
     backgroundHex: modeSpec.background,
     backgroundY,
     backgroundIsLight,
@@ -169,10 +240,72 @@ export function generateScale(
 
 export type RoleSet = Record<string, SolvedStep>;
 
-export function computeRoles(profile: Profile, mode: ModeKey, scale: SolvedStep[]): RoleSet {
+/** Where a filled role takes its colour from.
+ *
+ *  `fixed` keeps the profile's step, which always clears the role's own
+ *  contrast requirement but hands you a muddy fill for any hue whose cusp is
+ *  light: yellow, lime, teal and the greens all come out brown-ish.
+ *
+ *  `cusp` lets the role slide to the step nearest the hue's own peak, so a
+ *  yellow fill is actually yellow. The cost is real and is reported rather
+ *  than hidden: at that lightness the fill no longer reaches 3:1 against the
+ *  page on its own, so it needs a border to define its edge. 1.4.11 asks for
+ *  a perceivable boundary, not for the fill itself to carry the contrast, so
+ *  a bordered bright fill is conformant. An unbordered one is not. */
+export type FillPlacement = "fixed" | "cusp";
+
+export const FILL_PLACEMENT_LABELS: Record<FillPlacement, string> = {
+  fixed: "Fixed step",
+  cusp: "Follow the hue",
+};
+
+/** How far a filled role may slide, in steps. Enough to reach the cusp for
+ *  the light-peaked hues without letting a role wander into a neighbour's
+ *  territory. */
+const MAX_FILL_SHIFT = 3;
+
+function fillIndex(
+  role: RoleDef,
+  mode: ModeKey,
+  scale: SolvedStep[],
+  cuspL: number,
+  placement: FillPlacement,
+): number {
+  const declared = role.index[mode];
+  if (placement === "fixed" || !role.wantsSaturation) return declared;
+
+  let best = declared;
+  let bestChroma = scale[declared]?.chroma ?? 0;
+  const lowest = Math.max(0, declared - MAX_FILL_SHIFT);
+  const highest = Math.min(scale.length - 1, declared + MAX_FILL_SHIFT);
+
+  for (let i = lowest; i <= highest; i++) {
+    const step = scale[i];
+    if (!step) continue;
+    // Nearest the cusp *and* actually more saturated than where we started;
+    // a step can sit near the cusp lightness while the curve asks it for
+    // almost no chroma, and swapping to that would be a downgrade.
+    if (step.chroma > bestChroma + 0.005 && Math.abs(step.L - cuspL) < Math.abs((scale[best]?.L ?? 0) - cuspL)) {
+      best = i;
+      bestChroma = step.chroma;
+    }
+  }
+
+  return best;
+}
+
+export function computeRoles(
+  profile: Profile,
+  mode: ModeKey,
+  scale: SolvedStep[],
+  cuspL?: number,
+  placement: FillPlacement = "fixed",
+): RoleSet {
   const roles: RoleSet = {};
   for (const role of profile.roles) {
-    const step = scale[role.index[mode]];
+    const index =
+      cuspL === undefined ? role.index[mode] : fillIndex(role, mode, scale, cuspL, placement);
+    const step = scale[index];
     if (step) roles[role.key] = step;
   }
   return roles;
@@ -278,6 +411,7 @@ export interface Draft {
   name: string;
   seedHex: string;
   policy: ContrastPolicy;
+  fillPlacement: FillPlacement;
   pin?: PinSpec;
   seedOklch: ReturnType<typeof hexToOklch>;
   light: ModeResult;
@@ -292,10 +426,12 @@ export function buildDraft(
   seedHex: string,
   policy: ContrastPolicy = "wcag-strict",
   pin?: PinSpec,
+  fillPlacement: FillPlacement = "fixed",
 ): Draft {
+  const cuspL = hueCusp(hexToOklch(seedHex).H).L;
   const forMode = (mode: ModeKey): ModeResult => {
     const scale = generateScale(profile, mode, seedHex, policy, pin);
-    const roles = computeRoles(profile, mode, scale);
+    const roles = computeRoles(profile, mode, scale, cuspL, fillPlacement);
     const foregrounds: Record<string, ForegroundCandidate[]> = {};
     for (const role of foregroundRoles(profile)) {
       const step = roles[role.key];
@@ -308,6 +444,7 @@ export function buildDraft(
     name,
     seedHex,
     policy,
+    fillPlacement,
     pin,
     seedOklch: hexToOklch(seedHex),
     light: forMode("light"),
