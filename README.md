@@ -4,8 +4,9 @@ Turn one colour into a full design-system role set — solved independently for
 light and dark — then check it against APCA, WCAG 2.2 and colour-vision
 deficiency before it reaches a token file.
 
-A React port of the Colour Role Forge artifact, generalised so it is not tied
-to any one design system, and with the contrast model reworked.
+Not tied to any one design system: role names, usage, scale curves, token
+naming and the existing intent family all come from a *profile*. Diamond Light
+Source is one profile rather than the architecture.
 
 ```bash
 npm install
@@ -158,12 +159,13 @@ tokens you have already shipped, the way the Diamond profile does.
 ## Deployment
 
 `.github/workflows/pages.yml` builds and publishes to GitHub Pages on every
-push to `main` that touches this directory. Tests run first, so a deploy
-cannot ship colour maths that is quietly wrong.
+push to `main`. Tests run first, so a deploy cannot ship colour maths that is
+quietly wrong.
 
 Before the first deploy, switch Pages on: **Settings → Pages → Source →
-GitHub Actions**. The build sets `BASE_PATH` from the repository name for a
-project page; a user page or custom domain wants `BASE_PATH=/`.
+GitHub Actions**. The workflow derives `BASE_PATH` from the repository name,
+so a project page works without editing anything; a user page or custom domain
+wants `BASE_PATH=/`, which is also the local default.
 
 ## Reading the output
 
