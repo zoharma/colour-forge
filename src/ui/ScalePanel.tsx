@@ -25,6 +25,15 @@ export function ScalePanel({ profile, draft, mode, cvdView, foregroundOverrides,
   // original colour's luminance, not the simulation's.
   const shown = (hex: string) => simulateCvdHex(hex, cvdView);
 
+  // Listed in the order they sit on this mode's ramp, not in the order the
+  // profile happens to declare them. The two differ, and deliberately so:
+  // Diamond's accent and solid swap places between modes, because against a
+  // light page an accent needs real luminance separation while a solid fill
+  // gets by on chroma, and a dark page inverts that. Declaration order made
+  // the list read 1, 2, 3, 8, 5, 7, 9 in dark once the step numbers were
+  // shown. Sorting by step turns that from a glitch into the point.
+  const rolesByStep = [...profile.roles].sort((a, b) => a.index[mode] - b.index[mode]);
+
   const background = shown(spec.background);
   const onSurface = shown(spec.onSurface);
   const border = mode === "light" ? "#dde1e8" : "#282c35";
@@ -73,7 +82,7 @@ export function ScalePanel({ profile, draft, mode, cvdView, foregroundOverrides,
       </div>
 
       <div className="role-list">
-        {profile.roles.map((role) => {
+        {rolesByStep.map((role) => {
           const step = result.roles[role.key];
           if (!step) return null;
           return (
