@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 import { simulateCvdHex, type CvdView } from "../color/cvd";
 import { isValidHex, normaliseHex } from "../color/srgb";
 import type { ModeKey, Profile, SeededIntent } from "../profiles/types";
@@ -29,6 +31,53 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
       ...intent,
       [mode]: { ...intent[mode], [roleKey]: value === "" ? "" : normaliseHex(value) },
     }));
+  };
+
+  /* Reordering. Order is not cosmetic here: the separation table reports the
+     closest pair, and reading the family in the order the design system
+     actually presents its intents is what makes a collision between
+     neighbours obvious. */
+  const [dragging, setDragging] = useState<number | null>(null);
+  const [dropTarget, setDropTarget] = useState<number | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+
+  // Reordering replaces the row that was focused, so the focus has to be put
+  // back deliberately or a second arrow press lands nowhere and the move
+  // looks like it only half worked.
+  const handles = useRef<(HTMLButtonElement | null)[]>([]);
+  const [refocus, setRefocus] = useState<number | null>(null);
+  useEffect(() => {
+    if (refocus === null) return;
+    handles.current[refocus]?.focus();
+    setRefocus(null);
+  }, [family, refocus]);
+
+  // The live draft is pinned last, since it is re-derived on every keystroke
+  // rather than being a row anyone placed.
+  const movable = family.filter((f) => f.name !== draftName).length;
+
+  const move = (from: number, to: number) => {
+    if (from === to || from < 0 || to < 0 || from >= movable || to >= movable) return;
+    const next = [...family];
+    const [row] = next.splice(from, 1);
+    if (!row) return;
+    next.splice(to, 0, row);
+    onChange(next);
+    setAnnouncement(`${row.name} moved to position ${to + 1} of ${movable}.`);
+    setRefocus(to);
+  };
+
+  /* Dragging is pointer-only, so the same handle takes arrow keys. The tool
+     argues for keyboard access; a reorder that needs a mouse would be the one
+     place it did not offer it. */
+  const onHandleKeyDown = (event: React.KeyboardEvent, index: number) => {
+    if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+      event.preventDefault();
+      move(index, index - 1);
+    } else if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+      event.preventDefault();
+      move(index, index + 1);
+    }
   };
 
   return (
@@ -69,22 +118,65 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
             {family.map((intent, index) => {
               const isDraft = intent.name === draftName;
               return (
-                <tr key={`${intent.name}-${index}`}>
+                <tr
+                  key={index}
+                  className={dropTarget === index && dragging !== index ? "drop-target" : undefined}
+                  onDragOver={(e) => {
+                    if (isDraft || dragging === null) return;
+                    e.preventDefault();
+                    setDropTarget(index);
+                  }}
+                  onDragLeave={() => setDropTarget((t) => (t === index ? null : t))}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragging !== null && !isDraft) move(dragging, index);
+                    setDragging(null);
+                    setDropTarget(null);
+                  }}
+                >
                   <td>
-                    {isDraft ? (
-                      <span>
-                        <strong>{intent.name}</strong>{" "}
-                        <span className="pill neutral">live draft</span>
-                      </span>
-                    ) : (
-                      <input
-                        className="namefield"
-                        type="text"
-                        value={intent.name}
-                        aria-label={`Name of intent ${index + 1}`}
-                        onChange={(e) => update(index, (i) => ({ ...i, name: e.target.value }))}
-                      />
-                    )}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      {isDraft ? (
+                        <span className="drag-handle placeholder" aria-hidden="true" />
+                      ) : (
+                        <button
+                          type="button"
+                          className="drag-handle"
+                          ref={(el) => {
+                            handles.current[index] = el;
+                          }}
+                          draggable
+                          aria-label={`Reorder ${intent.name}, position ${index + 1} of ${movable}. Use the arrow keys to move it.`}
+                          onDragStart={(e) => {
+                            setDragging(index);
+                            e.dataTransfer.effectAllowed = "move";
+                            // Firefox will not start a drag without payload.
+                            e.dataTransfer.setData("text/plain", String(index));
+                          }}
+                          onDragEnd={() => {
+                            setDragging(null);
+                            setDropTarget(null);
+                          }}
+                          onKeyDown={(e) => onHandleKeyDown(e, index)}
+                        >
+                          <span aria-hidden="true">⠿</span>
+                        </button>
+                      )}
+                      {isDraft ? (
+                        <span>
+                          <strong>{intent.name}</strong>{" "}
+                          <span className="pill neutral">live draft</span>
+                        </span>
+                      ) : (
+                        <input
+                          className="namefield"
+                          type="text"
+                          value={intent.name}
+                          aria-label={`Name of intent ${index + 1}`}
+                          onChange={(e) => update(index, (i) => ({ ...i, name: e.target.value }))}
+                        />
+                      )}
+                    </span>
                   </td>
 
                   {(["light", "dark"] as ModeKey[]).map((mode) =>
@@ -132,8 +224,12 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
           </tbody>
         </table>
       </div>
+      <p className="visually-hidden" role="status" aria-live="polite">
+        {announcement}
+      </p>
       <p className="foot-note">
-        Blank means the role has no shipped value for that intent — left empty rather than guessed, and
+        Drag a row by its handle, or focus the handle and use the arrow keys, to reorder the set. The live
+        draft stays last. Blank means the role has no shipped value for that intent — left empty rather than guessed, and
         skipped by the separation checks.
       </p>
     </>
