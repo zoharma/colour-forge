@@ -258,14 +258,30 @@ describe("scale generation", () => {
       it("meets each role's own WCAG requirement for a range of hues", () => {
         for (const seed of ["#3f63c9", "#d63c41", "#1b8834", "#e97b12", "#0a858e", "#b0008e", "#fcd021"]) {
           const draft = buildDraft(profile, "draft", seed);
+          const findings = auditDraft(profile, draft, [draftAsIntent(profile, draft)]);
+
           for (const mode of MODES) {
             for (const role of profile.roles) {
               const step = draft[mode].roles[role.key];
               if (!step || step.verdict === "below-both") continue;
+              const where = `${profile.id}/${mode}/${role.key}/${seed} (${step.hex}) ${step.verdict}`;
+              if (step.wcagRatio >= WCAG_MINIMUM[role.requirement] - 1e-6) continue;
+
+              // Exactly one exception is allowed, and it is worth stating in
+              // full because it is the only place in the tool where a role is
+              // knowingly returned below its requirement: a filled role, light
+              // mode only, that moved off its declared step to keep the hue.
+              // On a dark page the bright form is already far above the floor,
+              // so a miss there would be a bug rather than a trade.
+              expect(role.wantsSaturation, where).toBe(true);
+              expect(mode, where).toBe("light");
+              expect(step.stepIndex, where).not.toBe(role.index[mode]);
+              // And never silently. The border is what makes it conformant, so
+              // an unreported one would be the tool hiding its own trade.
               expect(
-                step.wcagRatio,
-                `${profile.id}/${mode}/${role.key}/${seed} (${step.hex}) ${step.verdict}`,
-              ).toBeGreaterThanOrEqual(WCAG_MINIMUM[role.requirement] - 1e-6);
+                findings.some((f) => f.id === `fill-placement-light-${role.key}`),
+                where,
+              ).toBe(true);
             }
           }
         }

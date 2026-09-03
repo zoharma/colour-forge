@@ -69,35 +69,8 @@ export interface ProfileMode {
   selector: string;
 }
 
-/** Everything needed to regenerate an intent from scratch.
- *
- *  The unions are spelled out rather than imported from the solver so a
- *  profile stays plain data with no dependency on the colour engine. They are
- *  checked against the solver's own types in the tests.
- *
- *  Recorded in full, not just the seed, because regenerating under whatever
- *  settings happen to be current would quietly rewrite a frozen intent: a row
- *  frozen under a relaxed policy would come back strict, and a pinned one
- *  would lose its pin. */
-export interface IntentRecipe {
-  seed: string;
-  policy: "wcag-strict" | "wcag-relaxed" | "hue-first";
-  /** Placement is a per-intent decision rather than a global one: a system can
-   *  reasonably ship a bright orange and a muted teal, which is this same
-   *  question answered two different ways in one palette. */
-  fillPlacement: "fixed" | "cusp";
-  pin?: { mode: ModeKey; roleKey: string };
-}
-
 export interface SeededIntent {
   name: string;
-  /** Present only when this tool produced the values.
-   *
-   *  Profile-shipped intents have no recipe: their values are real tokens read
-   *  out of a design system, and re-deriving them would replace measured
-   *  values with guesses at how they might have been made. So the UI offers to
-   *  regenerate exactly the rows it is entitled to, and no others. */
-  recipe?: IntentRecipe;
   /** Role key → hex, per mode. Sparse: a role with no shipped value yet is
    *  simply absent rather than guessed. */
   light: Record<string, string>;

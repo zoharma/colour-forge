@@ -50,7 +50,7 @@ function blockFor(profile: Profile, draft: Draft, mode: ModeKey, options: Export
     // value. Both have to survive the paste into a token file, so they are
     // annotated unconditionally rather than only under includeMeasurements.
     const moved =
-      role.wantsSaturation && draft.fillPlacement === "cusp" && step.stepIndex !== role.index[mode]
+      role.wantsSaturation && step.stepIndex !== role.index[mode]
         ? `  /* Follows this hue's peak: step ${displayStep(step.stepIndex)}, not the profile's step ${displayStep(role.index[mode])}.\n` +
           (meetsWcag(step.wcagRatio, role.requirement)
             ? `     Still ${step.wcagRatio.toFixed(2)}:1 against the page. */`
@@ -188,7 +188,6 @@ export function exportJson(profile: Profile, draft: Draft, options: ExportOption
       profile: profile.id,
       seed: draft.seedHex,
       contrastPolicy: draft.policy,
-      fillPlacement: draft.fillPlacement,
       light: forMode("light"),
       dark: forMode("dark"),
     },

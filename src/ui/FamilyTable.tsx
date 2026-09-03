@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
 import { simulateCvdHex, type CvdView } from "../color/cvd";
-import { FILL_PLACEMENT_LABELS, type FillPlacement } from "../color/scale";
 import { isValidHex, normaliseHex } from "../color/srgb";
 import { WCAG_CRITERION, meetsWcag, wcagRatioHex } from "../color/wcag";
 import type { ModeKey, Profile, SeededIntent } from "../profiles/types";
@@ -14,10 +13,6 @@ interface Props {
   onChange: (family: SeededIntent[]) => void;
   onReset: () => void;
   onSnapshot: () => void;
-  /** Re-derive one row at a new fill placement. Only ever called for rows this
-   *  tool generated; a profile's shipped values have nothing to re-derive
-   *  from and the control is not offered for them. */
-  onPlacementChange: (index: number, placement: FillPlacement) => void;
 }
 
 /** One editable hex.
@@ -83,24 +78,19 @@ export function FamilyTable({
   onChange,
   onReset,
   onSnapshot,
-  onPlacementChange,
 }: Props) {
   // Nothing to place if the profile has no role whose job is to be the
   // colour, so the column does not appear at all rather than sitting there
   // inert.
   const filledRole = profile.roles.find((r) => r.wantsSaturation);
-  const hasFilledRole = Boolean(filledRole);
-  const filledRoleLabel = filledRole?.label ?? "Filled";
 
-  /** Which modes of a row have a fill that followed the hue past the point
-   *  where it can define its own edge.
+  /** Which modes of a row have a fill too bright to define its own edge.
    *
-   *  The draft gets this as a finding; a family row has to get it here, or the
-   *  tool would be generating a value it knows is short of 1.4.11 and saying
-   *  nothing — which is not the same as reporting on a shipped value it merely
-   *  found that way. */
+   *  The draft gets this as a finding; a family row has to get it here, or a
+   *  value the tool generated would carry a 1.4.11 obligation with nothing
+   *  anywhere saying so. */
   const needsBorder = (intent: SeededIntent): ModeKey[] => {
-    if (!filledRole || intent.recipe?.fillPlacement !== "cusp") return [];
+    if (!filledRole) return [];
     return (["light", "dark"] as ModeKey[]).filter((mode) => {
       const hex = intent[mode][filledRole.key];
       if (!hex) return false;
@@ -192,7 +182,6 @@ export function FamilyTable({
           <thead>
             <tr>
               <th scope="col">Intent</th>
-              {hasFilledRole && <th scope="col">{filledRoleLabel} from</th>}
               {(["light", "dark"] as ModeKey[]).map((mode) =>
                 roles.map((role) => (
                   <th scope="col" key={`${mode}-${role.key}`}>
@@ -267,44 +256,17 @@ export function FamilyTable({
                           onChange={(e) => update(index, (i) => ({ ...i, name: e.target.value }))}
                         />
                       )}
-                    </span>
-                  </td>
-
-                  {hasFilledRole && (
-                    <td>
-                      {intent.recipe ? (
-                        <select
-                          className="view-select placement-select"
-                          value={intent.recipe.fillPlacement}
-                          aria-label={`Fill placement for ${intent.name}`}
-                          onChange={(e) => onPlacementChange(index, e.target.value as FillPlacement)}
-                        >
-                          {(["fixed", "cusp"] as FillPlacement[]).map((f) => (
-                            <option key={f} value={f}>
-                              {FILL_PLACEMENT_LABELS[f]}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span
-                          className="readout"
-                          title="Shipped values, not generated here — there is nothing to re-derive them from."
-                        >
-                          shipped
-                        </span>
-                      )}
                       {needsBorder(intent).map((mode) => (
                         <span
                           key={mode}
                           className="pill warn"
-                          style={{ marginLeft: 4 }}
-                          title={`In ${mode} mode this fill is under ${WCAG_CRITERION[filledRole!.requirement]} against the page, so it cannot define its own edge. 1.4.11 asks for a perceivable boundary rather than a contrasting fill — give it a border and it conforms.`}
+                          title={`In ${mode} mode this ${filledRole?.label.toLowerCase() ?? "fill"} is under ${filledRole ? WCAG_CRITERION[filledRole.requirement] : "3:1"} against the page, so it cannot define its own edge. 1.4.11 asks for a perceivable boundary rather than a contrasting fill, so give it a border and it conforms.`}
                         >
                           {mode.slice(0, 1)} · needs a border
                         </span>
                       ))}
-                    </td>
-                  )}
+                    </span>
+                  </td>
 
                   {(["light", "dark"] as ModeKey[]).map((mode) =>
                     roles.map((role) => {
@@ -355,13 +317,6 @@ export function FamilyTable({
         Drag a row by its handle, or focus the handle and use the arrow keys, to reorder the set. The live
         draft stays last. Blank means the role has no shipped value for that intent — left empty rather than guessed, and
         skipped by the separation checks.
-        {hasFilledRole && (
-          <>
-            {" "}
-            Rows marked <b>shipped</b> are real tokens read out of the design system, so they are edited by hand
-            rather than re-derived; every other row was generated here and can be re-derived at either placement.
-          </>
-        )}
       </p>
     </>
   );

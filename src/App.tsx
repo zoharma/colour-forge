@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { auditDraft, draftAsIntent, regenerateIntent, separationRows } from "./color/audit";
+import { auditDraft, draftAsIntent, separationRows } from "./color/audit";
 import type { CvdView } from "./color/cvd";
 import {
   POLICY_DESCRIPTIONS,
   POLICY_LABELS,
   type ContrastPolicy,
 } from "./color/solver";
-import { buildDraft, FILL_PLACEMENT_LABELS, type FillPlacement } from "./color/scale";
+import { buildDraft } from "./color/scale";
 import { suggestPin, type PinSpec } from "./color/pin";
 import { isValidHex, normaliseHex } from "./color/srgb";
 import { DEFAULT_PROFILE_ID, PROFILES, findProfile, type ModeKey, type SeededIntent } from "./profiles";
@@ -36,7 +36,6 @@ function readUrlState() {
     name: params.get("name") ?? "draft",
     policy: (params.get("policy") as ContrastPolicy | null) ?? "wcag-strict",
     pin: parsePin(params.get("pin")),
-    fillPlacement: (params.get("fill") as FillPlacement | null) ?? "fixed",
     // Not one of the example intents: seeding on top of one opens the tool
     // onto a wall of collisions with itself, which reads as the tool being
     // broken rather than as the finding it is.
@@ -69,7 +68,6 @@ export function App() {
   const [policy, setPolicy] = useState<ContrastPolicy>(initial.policy);
   const [showScale, setShowScale] = useState(false);
   const [pin, setPin] = useState<PinSpec | undefined>(initial.pin);
-  const [fillPlacement, setFillPlacement] = useState<FillPlacement>(initial.fillPlacement);
   const [hexDraft, setHexDraft] = useState(initial.seedHex);
   const [cvdView, setCvdView] = useState<CvdView>(() => readStored<CvdView>("cf-cvd", "none"));
   const [theme, setTheme] = useState<ThemeChoice>(() => readStored<ThemeChoice>("cf-theme", "system"));
@@ -114,19 +112,16 @@ export function App() {
   useEffect(() => {
     const params = new URLSearchParams({ profile: profileId, name, seed: seedHex, policy });
     if (pin) params.set("pin", `${pin.mode}:${pin.roleKey}`);
-    if (fillPlacement !== "fixed") params.set("fill", fillPlacement);
     window.history.replaceState(null, "", `#${params.toString()}`);
-  }, [profileId, name, seedHex, policy, pin, fillPlacement]);
+  }, [profileId, name, seedHex, policy, pin]);
 
   const draft = useMemo(
-    () => buildDraft(profile, name.trim() || "draft", seedHex, policy, pin, fillPlacement),
-    [profile, name, seedHex, policy, pin, fillPlacement],
+    () => buildDraft(profile, name.trim() || "draft", seedHex, policy, pin),
+    [profile, name, seedHex, policy, pin],
   );
 
   const pinSuggestion = useMemo(() => suggestPin(profile, seedHex), [profile, seedHex]);
 
-  // Placement only means anything for a role whose job is to be the colour.
-  const filledRole = profile.roles.find((r) => r.wantsSaturation);
 
   // The draft participates in the family checks as a live row, so a change to
   // the seed is reflected in the separation table immediately.
@@ -151,30 +146,6 @@ export function App() {
 
   const setForeground = (mode: ModeKey, roleKey: string, label: string) =>
     setForegroundOverrides((prev) => ({ ...prev, [mode]: { ...prev[mode], [roleKey]: label } }));
-
-  /** Re-derive one family row at a different fill placement.
-   *
-   *  Under its own recorded recipe, not the controls currently on screen: a
-   *  row frozen under a relaxed policy or with a pinned role would otherwise
-   *  come back as a different colour entirely, which is not what changing one
-   *  dropdown should mean. */
-  const setRowPlacement = (index: number, placement: FillPlacement) => {
-    const row = familyWithDraft[index];
-    if (!row?.recipe) return;
-
-    // The draft's row is a live view of the controls above rather than a
-    // stored value, so its placement is changed at the source.
-    if (row.name === draft.name) {
-      setFillPlacement(placement);
-      return;
-    }
-
-    const rebuilt = regenerateIntent(profile, row, placement);
-    if (!rebuilt) return;
-    setFamily(
-      familyWithDraft.map((f, i) => (i === index ? rebuilt : f)).filter((f) => f.name !== draft.name),
-    );
-  };
 
   const snapshotDraft = () => {
     const asIntent = draftAsIntent(profile, draft);
@@ -302,45 +273,6 @@ export function App() {
               <PinControl profile={profile} pin={pin} suggestion={pinSuggestion} onChange={setPin} />
             </div>
 
-            {filledRole && (
-            <div style={{ marginTop: 16 }}>
-              <span className="field-label">{filledRole.label} takes its colour from</span>
-              <div className="segmented" role="group" aria-label="Fill placement">
-                {(["fixed", "cusp"] as FillPlacement[]).map((f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    aria-pressed={fillPlacement === f}
-                    onClick={() => setFillPlacement(f)}
-                  >
-                    {FILL_PLACEMENT_LABELS[f]}
-                  </button>
-                ))}
-              </div>
-              <p className="policy-note">
-                {fillPlacement === "fixed" ? (
-                  <>
-                    The step the profile names, which always clears the role's own contrast
-                    requirement. Hues that peak light — yellow, lime, teal, the greens — come out muddy
-                    at that step, because it asks them for their best colour at the one lightness they
-                    have none left.
-                  </>
-                ) : (
-                  <>
-                    The step nearest this hue's own peak, so a yellow fill is actually yellow. Hues that
-                    already peak mid-scale, like red, do not move at all. Where the brighter colour
-                    drops under 3:1 the fill can no longer define its own edge, so it is flagged with a
-                    suggestion to give it a border — 1.4.11 asks for a perceivable boundary, not a
-                    contrasting fill.
-                  </>
-                )}{" "}
-                This is a per-intent choice, not a setting for the palette: the family table below carries
-                the same control for every intent this tool generated, so a bright orange and a muted teal
-                can sit in one set.
-              </p>
-            </div>
-            )}
-
             <div style={{ marginTop: 16 }}>
               <span className="field-label">Where hue and WCAG 2.2 conflict</span>
               <div className="segmented" role="group" aria-label="Contrast policy">
@@ -414,7 +346,6 @@ export function App() {
               onChange={(next) => setFamily(next.filter((f) => f.name !== draft.name))}
               onReset={() => setFamily(profile.family)}
               onSnapshot={snapshotDraft}
-              onPlacementChange={setRowPlacement}
             />
             <div style={{ marginTop: 18 }}>
               <SeparationTable rows={rows} />

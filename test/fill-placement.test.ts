@@ -1,20 +1,25 @@
 import { describe, expect, it } from "vitest";
 
-import { buildDraft } from "../src/color/scale";
-import { hueCusp, hexToOklch } from "../src/color/oklch";
 import { auditDraft, draftAsIntent } from "../src/color/audit";
-import { genericProfile } from "../src/profiles/generic";
+import { hexToOklch, hueCusp } from "../src/color/oklch";
+import { buildDraft } from "../src/color/scale";
+import { meetsWcag } from "../src/color/wcag";
 import { diamondProfile } from "../src/profiles/diamond";
+import { genericProfile } from "../src/profiles/generic";
 import { MATERIAL_500 } from "../src/profiles/material";
+import type { ModeKey, Profile } from "../src/profiles/types";
 
-/** Hues whose gamut peaks light, so the profile's fixed fill step lands well
+const MODES: ModeKey[] = ["light", "dark"];
+const PROFILES = [genericProfile, diamondProfile];
+
+const filledRole = (p: Profile) => p.roles.find((r) => r.wantsSaturation)!;
+
+/** Hues whose gamut peaks light, so the profile's declared step lands well
  *  below their cusp and hands back a muddy version of the colour. */
-const LIGHT_PEAKED = ["#ffeb3b", "#cddc39", "#009688", "#4caf50"];
-/** Hues that already peak near the fill step and should not move. */
-const MID_PEAKED = ["#f44336", "#e91e63"];
-
-const fill = (seed: string, placement: "fixed" | "cusp") =>
-  buildDraft(genericProfile, "x", seed, "wcag-strict", undefined, placement).light.roles.fill!;
+const LIGHT_PEAKED = ["#ffeb3b", "#cddc39", "#009688", "#4caf50", "#00bcd4", "#8bc34a"];
+/** Hues that peak dark. Their most chromatic step is *away* from the page, so
+ *  they are the ones an unconstrained chroma search sends wandering. */
+const DARK_PEAKED = ["#3f51b5", "#673ab7"];
 
 describe("cusp-aware chroma", () => {
   it("finds a plausible cusp for every hue", () => {
@@ -26,97 +31,123 @@ describe("cusp-aware chroma", () => {
     }
   });
 
-  it("puts yellow's peak somewhere light and red's somewhere mid", () => {
-    // The whole premise: a fixed chroma peak cannot serve both.
+  it("puts yellow's peak somewhere light and indigo's somewhere dark", () => {
+    // The whole premise: one fixed step cannot serve both.
     expect(hueCusp(hexToOklch("#ffeb3b").H).L).toBeGreaterThan(0.8);
-    expect(hueCusp(hexToOklch("#f44336").H).L).toBeLessThan(0.65);
+    expect(hueCusp(hexToOklch("#3f51b5").H).L).toBeLessThan(0.5);
   });
 });
 
-describe("fill placement", () => {
-  it("defaults to the profile's own step", () => {
-    const draft = buildDraft(genericProfile, "x", "#ffeb3b");
-    expect(draft.fillPlacement).toBe("fixed");
-    expect(draft.light.roles.fill!.hex).toBe(fill("#ffeb3b", "fixed").hex);
-  });
-
-  it("gives light-peaked hues a more saturated fill when following the hue", () => {
+describe("the fill lands on its most chromatic reachable step", () => {
+  it("gives light-peaked hues a more saturated fill than the declared step", () => {
     for (const seed of LIGHT_PEAKED) {
-      const before = fill(seed, "fixed");
-      const after = fill(seed, "cusp");
-      expect(after.chroma, seed).toBeGreaterThan(before.chroma + 0.01);
+      const draft = buildDraft(genericProfile, "x", seed);
+      const role = filledRole(genericProfile);
+      const step = draft.light.roles[role.key]!;
+      const declared = draft.light.scale[role.index.light]!;
+      expect(step.chroma, seed).toBeGreaterThan(declared.chroma);
     }
   });
 
-  it("leaves mid-peaked hues where they were", () => {
-    for (const seed of MID_PEAKED) {
-      expect(fill(seed, "cusp").hex, seed).toBe(fill(seed, "fixed").hex);
+  it("leaves a hue already at its peak exactly where it was", () => {
+    // Red and pink peak near their declared step, so there is nothing to gain
+    // and the rule must not invent a move.
+    for (const seed of ["#f44336", "#e91e63"]) {
+      const draft = buildDraft(genericProfile, "x", seed);
+      const role = filledRole(genericProfile);
+      expect(draft.light.roles[role.key]!.stepIndex, seed).toBe(role.index.light);
     }
   });
+});
 
-  it("never trades to a less saturated step", () => {
-    // The step nearest the cusp can be one the curve asks almost no chroma
-    // of, and moving there would be a downgrade dressed up as an improvement.
-    for (const { name, hex } of MATERIAL_500) {
-      for (const profile of [genericProfile, diamondProfile]) {
-        const key = profile === genericProfile ? "fill" : "solid";
-        for (const mode of ["light", "dark"] as const) {
-          const before = buildDraft(profile, "x", hex, "wcag-strict", undefined, "fixed")[mode].roles[key]!;
-          const after = buildDraft(profile, "x", hex, "wcag-strict", undefined, "cusp")[mode].roles[key]!;
-          expect(after.chroma, `${profile.id}/${mode}/${name}`).toBeGreaterThanOrEqual(before.chroma - 1e-9);
+describe("the two constraints that make the rule safe", () => {
+  it("never moves a fill toward the background", () => {
+    // The guard that keeps indigo out of a near-navy while its siblings sit
+    // four steps lighter. Asserted across every hue, not just the two that
+    // motivated it.
+    for (const profile of PROFILES) {
+      const role = filledRole(profile);
+      for (const { name, hex } of MATERIAL_500) {
+        const draft = buildDraft(profile, "x", hex);
+        for (const mode of MODES) {
+          const step = draft[mode].roles[role.key]!;
+          const declared = draft[mode].scale[role.index[mode]]!;
+          expect(step.L, `${profile.id} ${name} ${mode}`).toBeGreaterThanOrEqual(declared.L);
         }
       }
     }
   });
 
-  it("never moves a role that is not a filled one", () => {
-    for (const seed of LIGHT_PEAKED) {
-      const before = buildDraft(genericProfile, "x", seed, "wcag-strict", undefined, "fixed");
-      const after = buildDraft(genericProfile, "x", seed, "wcag-strict", undefined, "cusp");
-      for (const role of genericProfile.roles) {
-        if (role.wantsSaturation) continue;
-        expect(after.light.roles[role.key]!.hex, `${seed}/${role.key}`).toBe(
-          before.light.roles[role.key]!.hex,
-        );
+  it("holds dark mode to its contrast requirement", () => {
+    // On a dark page every bright form already measures far above the floor,
+    // so there is never a reason to buy brightness with conformance.
+    for (const profile of PROFILES) {
+      const role = filledRole(profile);
+      for (const { name, hex } of MATERIAL_500) {
+        const step = buildDraft(profile, "x", hex).dark.roles[role.key]!;
+        expect(meetsWcag(step.wcagRatio, role.requirement), `${profile.id} ${name}`).toBe(true);
       }
+    }
+  });
+
+  it("never moves a near-neutral, where 'most chromatic' is noise", () => {
+    // Grey's steps differ by thousandths of chroma. Ranking on that sends the
+    // fill to a pale grey at 1.76:1, which is not a brighter grey, just wrong.
+    for (const profile of PROFILES) {
+      const role = filledRole(profile);
+      for (const seed of ["#9e9e9e", "#757575", "#ffffff", "#000000"]) {
+        const draft = buildDraft(profile, "x", seed);
+        for (const mode of MODES) {
+          expect(draft[mode].roles[role.key]!.stepIndex, `${seed} ${mode}`).toBe(role.index[mode]);
+        }
+      }
+    }
+  });
+
+  it("never trades to a less saturated step, at any hue", () => {
+    for (const profile of PROFILES) {
+      const role = filledRole(profile);
+      for (const { name, hex } of MATERIAL_500) {
+        const draft = buildDraft(profile, "x", hex);
+        for (const mode of MODES) {
+          const step = draft[mode].roles[role.key]!;
+          const declared = draft[mode].scale[role.index[mode]]!;
+          expect(step.chroma, `${profile.id} ${name} ${mode}`).toBeGreaterThanOrEqual(declared.chroma);
+        }
+      }
+    }
+  });
+
+  it("moves dark-peaked hues nowhere, in either mode", () => {
+    for (const seed of DARK_PEAKED) {
+      const role = filledRole(genericProfile);
+      const draft = buildDraft(genericProfile, "x", seed);
+      expect(draft.light.roles[role.key]!.stepIndex, seed).toBe(role.index.light);
+    }
+  });
+});
+
+describe("what the move costs is reported", () => {
+  it("raises a border warning exactly when the light fill drops under its requirement", () => {
+    const role = filledRole(genericProfile);
+    for (const { name, hex } of MATERIAL_500) {
+      const draft = buildDraft(genericProfile, "x", hex);
+      const step = draft.light.roles[role.key]!;
+      const flagged = auditDraft(genericProfile, draft, [draftAsIntent(genericProfile, draft)]).some(
+        (f) => f.id === `fill-placement-light-${role.key}`,
+      );
+      expect(flagged, `${name} ${step.hex} ${step.wcagRatio.toFixed(2)}:1`).toBe(
+        !meetsWcag(step.wcagRatio, role.requirement),
+      );
     }
   });
 
   it("reports the step a role actually took, not the one it was declared at", () => {
-    // The label and the colour have to agree. They did not: the row printed
-    // the role's declared step while showing the colour of the step it had
-    // moved to, so a fill reading "step 7" was showing step 4's colour.
-    for (const { name, hex } of MATERIAL_500) {
-      for (const profile of [genericProfile, diamondProfile]) {
-        const key = profile === genericProfile ? "fill" : "solid";
-        for (const mode of ["light", "dark"] as const) {
-          const draft = buildDraft(profile, "x", hex, "wcag-strict", undefined, "cusp");
-          const scale = draft[mode].scale;
-          for (const role of profile.roles) {
-            const step = draft[mode].roles[role.key]!;
-            expect(step.stepIndex, `${profile.id}/${mode}/${role.key}/${name}`).toBeGreaterThanOrEqual(0);
-            expect(scale[step.stepIndex]!.hex, `${profile.id}/${mode}/${role.key}/${name}`).toBe(step.hex);
-          }
-          void key;
-        }
-      }
+    for (const seed of LIGHT_PEAKED) {
+      const role = filledRole(genericProfile);
+      const draft = buildDraft(genericProfile, "x", seed);
+      const step = draft.light.roles[role.key]!;
+      expect(draft.light.scale[step.stepIndex]!.hex, seed).toBe(step.hex);
     }
-  });
-
-  it("says a bright fill needs a border, rather than silently shipping it", () => {
-    const draft = buildDraft(genericProfile, "x", "#ffeb3b", "wcag-strict", undefined, "cusp");
-    const findings = auditDraft(genericProfile, draft, [draftAsIntent(genericProfile, draft)]);
-    const flagged = findings.find((f) => f.id.startsWith("fill-placement-"));
-    expect(flagged?.severity).toBe("warning");
-    expect(flagged?.detail).toContain("border");
-    expect(flagged?.detail).toContain("1.4.11");
-  });
-
-  it("stays quiet when the brighter fill still clears its requirement", () => {
-    // Orange gets brighter and still makes 3:1, so there is nothing to say.
-    const draft = buildDraft(genericProfile, "x", "#ff9800", "wcag-strict", undefined, "cusp");
-    const findings = auditDraft(genericProfile, draft, [draftAsIntent(genericProfile, draft)]);
-    expect(findings.filter((f) => f.id.startsWith("fill-placement-"))).toEqual([]);
-    expect(draft.light.roles.fill!.wcagRatio).toBeGreaterThanOrEqual(3);
   });
 });

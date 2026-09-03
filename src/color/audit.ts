@@ -9,7 +9,7 @@ import { apcaYHex } from "./apca";
 import { CVD_SEPARATION_COMFORTABLE, CVD_SEPARATION_FLOOR, worstCvdSeparation } from "./cvd";
 import { hexToOklch, hueDelta } from "./oklch";
 import { rgbDistanceHex } from "./srgb";
-import { buildDraft, chosenForeground, type Draft, type FillPlacement } from "./scale";
+import { chosenForeground, type Draft } from "./scale";
 import { WCAG_CRITERION, meetsWcag, permittedUsage, wcagRatioHex } from "./wcag";
 import {
   displayStep,
@@ -70,7 +70,6 @@ function contrastFindings(profile: Profile, draft: Draft): Finding[] {
       // for a person to take or leave, not a rule.
       if (
         role.wantsSaturation &&
-        draft.fillPlacement === "cusp" &&
         role.requirement !== "none" &&
         !meetsWcag(step.wcagRatio, role.requirement)
       ) {
@@ -81,7 +80,7 @@ function contrastFindings(profile: Profile, draft: Draft): Finding[] {
           mode,
           role: role.key,
           message: `${role.label} is at its brightest here, and only ${step.wcagRatio.toFixed(2)}:1 against the page.`,
-          detail: `This hue peaks in lightness, so following it gives a colour that is properly ${draft.name} rather than a muddy version of it, but the fill can no longer define its own edge. 1.4.11 asks for a perceivable boundary rather than a contrasting fill, so give it a border in the boundary role and it conforms. Without one it does not. Text on the fill is unaffected and is checked separately.`,
+          detail: `This hue peaks in lightness, so the step that makes it properly ${draft.name} rather than a muddy version of it sits too close to the page to define its own edge. Keeping the colour is the right trade here, and the cost is a border: 1.4.11 asks for a perceivable boundary rather than a contrasting fill, so give it one in the boundary role and it conforms. Without one it does not. Text on the fill is unaffected and is checked separately.`,
         });
       }
 
@@ -498,35 +497,7 @@ export function draftAsIntent(profile: Profile, draft: Draft): SeededIntent {
   };
   return {
     name: draft.name,
-    recipe: {
-      seed: draft.seedHex,
-      policy: draft.policy,
-      fillPlacement: draft.fillPlacement,
-      ...(draft.pin ? { pin: draft.pin } : {}),
-    },
     light: forMode("light"),
     dark: forMode("dark"),
   };
-}
-
-/** Re-derive a generated intent at a different fill placement.
- *
- *  Works from the intent's own recorded recipe rather than whatever settings
- *  are currently on screen, so changing one dropdown changes exactly that one
- *  thing: a row frozen under a relaxed policy stays relaxed, a pinned one
- *  stays pinned.
- *
- *  Returns undefined for an intent with no recipe. Those are a design system's
- *  real shipped tokens, and re-deriving them would replace measured values
- *  with a guess at how they might have been made — the tool has no standing to
- *  do that, so it declines rather than approximating. */
-export function regenerateIntent(
-  profile: Profile,
-  intent: SeededIntent,
-  placement: FillPlacement,
-): SeededIntent | undefined {
-  if (!intent.recipe) return undefined;
-  const recipe = { ...intent.recipe, fillPlacement: placement };
-  const draft = buildDraft(profile, intent.name, recipe.seed, recipe.policy, recipe.pin, placement);
-  return { ...draftAsIntent(profile, draft), recipe };
 }

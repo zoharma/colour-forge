@@ -247,53 +247,62 @@ export type RoleSet = Record<string, SolvedStep>;
 
 /** Where a filled role takes its colour from.
  *
- *  `fixed` keeps the profile's step, which always clears the role's own
- *  contrast requirement but hands you a muddy fill for any hue whose cusp is
- *  light: yellow, lime, teal and the greens all come out brown-ish.
+ *  Solved, not chosen. The profile names a step that is right for *contrast*,
+ *  and for a hue whose gamut peaks light — yellow, lime, teal, the greens —
+ *  that step has no chroma left, so the fill comes out brown. Measured across
+ *  Material's 19 core hues, the declared step lands at 3.9-4.4:1 in light
+ *  mode for a role that requires 3:1, so nearly every hue is paying chroma
+ *  for contrast nothing asked for.
  *
- *  `cusp` lets the role slide to the step nearest the hue's own peak, so a
- *  yellow fill is actually yellow. The cost is real and is reported rather
- *  than hidden: at that lightness the fill no longer reaches 3:1 against the
- *  page on its own, so it needs a border to define its edge. 1.4.11 asks for
- *  a perceivable boundary, not for the fill itself to carry the contrast, so
- *  a bordered bright fill is conformant. An unbordered one is not. */
-export type FillPlacement = "fixed" | "cusp";
+ *  So a filled role slides to its most chromatic step, under two constraints
+ *  that between them are the whole rule:
+ *
+ *  **It only ever moves lighter.** Red and pink already sit at their peak.
+ *  Indigo and deep purple peak *dark*, so an unconstrained search sends their
+ *  fill to a near-navy at Lc 85 while every sibling sits at Lc 66 — more
+ *  chroma, but no longer the same family. Refusing downward moves rules that
+ *  out without needing to name a single hue.
+ *
+ *  **Dark mode keeps its requirement; light mode may spend it.** This looks
+ *  asymmetric and is not: on a dark page every bright form already measures
+ *  9-14:1, so there is nothing to trade and no reason to allow a trade. On a
+ *  light page a genuinely yellow yellow is 1.3:1 and the conflict is real.
+ *  There the brightness wins and the cost is reported: the fill can no longer
+ *  define its own edge, so it needs a border. 1.4.11 asks for a perceivable
+ *  boundary rather than a contrasting fill, so a bordered bright fill
+ *  conforms and an unbordered one does not. */
 
-export const FILL_PLACEMENT_LABELS: Record<FillPlacement, string> = {
-  fixed: "Fixed step",
-  cusp: "Follow the hue",
-};
+/** Below this, "most chromatic" is ranking noise rather than a colour
+ *  decision. Without it a grey fill chases a step with 0.001 more chroma and
+ *  lands on #c0c0c0 at 1.76:1, which is not a brighter grey, just a wrong
+ *  one. */
+const NEUTRAL_CHROMA_FLOOR = 0.03;
 
-/** How far a filled role may slide, in steps. Enough to reach the cusp for
- *  the light-peaked hues without letting a role wander into a neighbour's
- *  territory. */
-const MAX_FILL_SHIFT = 3;
-
-function fillIndex(
-  role: RoleDef,
-  mode: ModeKey,
-  scale: SolvedStep[],
-  cuspL: number,
-  placement: FillPlacement,
-): number {
+function fillIndex(role: RoleDef, mode: ModeKey, scale: SolvedStep[], pin?: PinSpec): number {
   const declared = role.index[mode];
-  if (placement === "fixed" || !role.wantsSaturation) return declared;
+  const base = scale[declared];
+  if (!role.wantsSaturation || !base) return declared;
+  if (base.chroma < NEUTRAL_CHROMA_FLOOR) return declared;
+  // A pin is not a suggestion. "This exact hex is the fill" is the whole
+  // feature, so the placement rule has nothing to offer here and moving the
+  // role would silently discard the pinned colour.
+  if (pin && pin.mode === mode && pin.roleKey === role.key) return declared;
 
   let best = declared;
-  let bestChroma = scale[declared]?.chroma ?? 0;
-  const lowest = Math.max(0, declared - MAX_FILL_SHIFT);
-  const highest = Math.min(scale.length - 1, declared + MAX_FILL_SHIFT);
+  let bestChroma = base.chroma;
 
-  for (let i = lowest; i <= highest; i++) {
+  for (let i = 0; i < scale.length; i++) {
     const step = scale[i];
-    if (!step) continue;
-    // Nearest the cusp *and* actually more saturated than where we started;
-    // a step can sit near the cusp lightness while the curve asks it for
-    // almost no chroma, and swapping to that would be a downgrade.
-    if (step.chroma > bestChroma + 0.005 && Math.abs(step.L - cuspL) < Math.abs((scale[best]?.L ?? 0) - cuspL)) {
-      best = i;
-      bestChroma = step.chroma;
-    }
+    if (!step || step.chroma <= bestChroma) continue;
+    // Lighter only. The declared step is the right contrast position, so a
+    // move away from the background is spending headroom the role has; a move
+    // toward it is taking the role somewhere its siblings are not.
+    if (step.L <= base.L) continue;
+    // On a dark page brightness is free, so there is no case for buying it
+    // with conformance.
+    if (mode === "dark" && !meetsWcag(step.wcagRatio, role.requirement)) continue;
+    best = i;
+    bestChroma = step.chroma;
   }
 
   return best;
@@ -303,14 +312,11 @@ export function computeRoles(
   profile: Profile,
   mode: ModeKey,
   scale: SolvedStep[],
-  cuspL?: number,
-  placement: FillPlacement = "fixed",
+  pin?: PinSpec,
 ): RoleSet {
   const roles: RoleSet = {};
   for (const role of profile.roles) {
-    const index =
-      cuspL === undefined ? role.index[mode] : fillIndex(role, mode, scale, cuspL, placement);
-    const step = scale[index];
+    const step = scale[fillIndex(role, mode, scale, pin)];
     if (step) roles[role.key] = step;
   }
   return roles;
@@ -416,7 +422,6 @@ export interface Draft {
   name: string;
   seedHex: string;
   policy: ContrastPolicy;
-  fillPlacement: FillPlacement;
   pin?: PinSpec;
   seedOklch: ReturnType<typeof hexToOklch>;
   light: ModeResult;
@@ -431,12 +436,10 @@ export function buildDraft(
   seedHex: string,
   policy: ContrastPolicy = "wcag-strict",
   pin?: PinSpec,
-  fillPlacement: FillPlacement = "fixed",
 ): Draft {
-  const cuspL = hueCusp(hexToOklch(seedHex).H).L;
   const forMode = (mode: ModeKey): ModeResult => {
     const scale = generateScale(profile, mode, seedHex, policy, pin);
-    const roles = computeRoles(profile, mode, scale, cuspL, fillPlacement);
+    const roles = computeRoles(profile, mode, scale, pin);
     const foregrounds: Record<string, ForegroundCandidate[]> = {};
     for (const role of foregroundRoles(profile)) {
       const step = roles[role.key];
@@ -449,7 +452,6 @@ export function buildDraft(
     name,
     seedHex,
     policy,
-    fillPlacement,
     pin,
     seedOklch: hexToOklch(seedHex),
     light: forMode("light"),
