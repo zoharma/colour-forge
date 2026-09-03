@@ -8,12 +8,14 @@ import {
   type ContrastPolicy,
 } from "./color/solver";
 import { buildDraft } from "./color/scale";
+import { suggestPin, type PinSpec } from "./color/pin";
 import { isValidHex, normaliseHex } from "./color/srgb";
 import { DEFAULT_PROFILE_ID, PROFILES, findProfile, type ModeKey, type SeededIntent } from "./profiles";
 import { CvdControl } from "./ui/CvdControl";
 import { ExportPanel } from "./ui/ExportPanel";
 import { FamilyTable } from "./ui/FamilyTable";
 import { Findings } from "./ui/Findings";
+import { PinControl } from "./ui/PinControl";
 import { ScalePanel } from "./ui/ScalePanel";
 import { ScaleTable } from "./ui/ScaleTable";
 import { SeedPicker } from "./ui/SeedPicker";
@@ -32,11 +34,21 @@ function readUrlState() {
     profileId: params.get("profile") ?? DEFAULT_PROFILE_ID,
     name: params.get("name") ?? "draft",
     policy: (params.get("policy") as ContrastPolicy | null) ?? "wcag-strict",
+    pin: parsePin(params.get("pin")),
     // Not one of the example intents: seeding on top of one opens the tool
     // onto a wall of collisions with itself, which reads as the tool being
     // broken rather than as the finding it is.
     seedHex: seed && isValidHex(seed) ? normaliseHex(seed) : "#7b4fb8",
   };
+}
+
+/** "light:solid" — mode and role, so a pinned palette shares as a link like
+ *  any other. Nothing is pinned unless the parameter says so. */
+function parsePin(raw: string | null): PinSpec | undefined {
+  if (!raw) return undefined;
+  const [mode, roleKey] = raw.split(":");
+  if ((mode !== "light" && mode !== "dark") || !roleKey) return undefined;
+  return { mode, roleKey };
 }
 
 function readStored<T extends string>(key: string, fallback: T): T {
@@ -54,6 +66,7 @@ export function App() {
   const [seedHex, setSeedHex] = useState(initial.seedHex);
   const [policy, setPolicy] = useState<ContrastPolicy>(initial.policy);
   const [showScale, setShowScale] = useState(false);
+  const [pin, setPin] = useState<PinSpec | undefined>(initial.pin);
   const [hexDraft, setHexDraft] = useState(initial.seedHex);
   const [cvdView, setCvdView] = useState<CvdView>(() => readStored<CvdView>("cf-cvd", "none"));
   const [theme, setTheme] = useState<ThemeChoice>(() => readStored<ThemeChoice>("cf-theme", "system"));
@@ -65,11 +78,15 @@ export function App() {
   const profile = useMemo(() => findProfile(profileId), [profileId]);
   const [family, setFamily] = useState<SeededIntent[]>(() => findProfile(initial.profileId).family);
 
-  // Switching profile changes the role vocabulary itself, so a family and a
-  // set of foreground picks from the previous one no longer mean anything.
+  // Switching profile changes the role vocabulary itself, so a family, a set
+  // of foreground picks and a pinned role key from the previous one no longer
+  // mean anything.
   useEffect(() => {
     setFamily(profile.family);
     setForegroundOverrides({ light: {}, dark: {} });
+    setPin((current) =>
+      current && profile.roles.some((r) => r.key === current.roleKey) ? current : undefined,
+    );
   }, [profile]);
 
   useEffect(() => {
@@ -93,13 +110,16 @@ export function App() {
 
   useEffect(() => {
     const params = new URLSearchParams({ profile: profileId, name, seed: seedHex, policy });
+    if (pin) params.set("pin", `${pin.mode}:${pin.roleKey}`);
     window.history.replaceState(null, "", `#${params.toString()}`);
-  }, [profileId, name, seedHex, policy]);
+  }, [profileId, name, seedHex, policy, pin]);
 
   const draft = useMemo(
-    () => buildDraft(profile, name.trim() || "draft", seedHex, policy),
-    [profile, name, seedHex, policy],
+    () => buildDraft(profile, name.trim() || "draft", seedHex, policy, pin),
+    [profile, name, seedHex, policy, pin],
   );
+
+  const pinSuggestion = useMemo(() => suggestPin(profile, seedHex), [profile, seedHex]);
 
   // The draft participates in the family checks as a live row, so a change to
   // the seed is reflected in the separation table immediately.
@@ -237,6 +257,11 @@ export function App() {
             <div style={{ marginTop: 16 }}>
               <span className="field-label">{profile.seedPaletteLabel} — one-click seeds</span>
               <SeedPicker profile={profile} seedHex={seedHex} cvdView={cvdView} onPick={commitHex} />
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <span className="field-label">Seed placement</span>
+              <PinControl profile={profile} pin={pin} suggestion={pinSuggestion} onChange={setPin} />
             </div>
 
             <div style={{ marginTop: 16 }}>

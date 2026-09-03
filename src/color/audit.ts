@@ -51,12 +51,29 @@ function contrastFindings(profile: Profile, draft: Draft): Finding[] {
       const step = draft[mode].roles[role.key];
       if (!step) continue;
 
+      // A pinned colour that cannot carry the role it was pinned to is the
+      // single most useful thing the tool can say, so it is separated from the
+      // ordinary policy exemption: nothing was traded away here, the colour
+      // simply does not fit, and the answer is a different colour or a
+      // different role rather than a cue alongside it.
+      if (step.verdict === "pinned" && step.conformance !== "meets") {
+        findings.push({
+          id: `contrast-pinned-${mode}-${role.key}`,
+          severity: "blocker",
+          category: "contrast",
+          mode,
+          role: role.key,
+          message: `The pinned colour does not meet ${WCAG_CRITERION[role.requirement]} as ${role.label} — ${step.wcagRatio.toFixed(2)}:1.`,
+          detail: `${step.hex} against the ${mode} background is legal for ${permittedUsage(step.wcagRatio)}. Nothing was traded away to get here: this exact colour was pinned to this role and does not carry it. Pin it to a different role, pin it in the other mode, or let the solver derive this role instead.`,
+        });
+      }
+
       // A deliberate miss is a different thing from a failure, and gets said
       // differently: the colour was kept on purpose, and what comes with that
       // is a narrower permitted usage plus an obligation to carry the meaning
       // some other way. Still a blocker — it is a decision that has to reach
       // whoever implements it, not a note to skim past.
-      if (step.conformance === "below-by-choice") {
+      if (step.verdict !== "pinned" && step.conformance === "below-by-choice") {
         findings.push({
           id: `contrast-below-aa-${mode}-${role.key}`,
           severity: "blocker",
@@ -342,6 +359,40 @@ function familyFindings(profile: Profile, draft: Draft, siblings: SeededIntent[]
 
 /* ---------------------------------------------------------------------- */
 
+/** A scale whose steps stop getting darker (or lighter) as they go is no
+ *  longer a scale. It happens where a pinned role pulls the ramp toward the
+ *  background while a neighbouring step has a hard WCAG floor that will not
+ *  follow it — the floor is right to hold, and the result is still worth
+ *  saying out loud rather than shipping a ramp that doubles back. */
+function rampFindings(profile: Profile, draft: Draft): Finding[] {
+  const findings: Finding[] = [];
+
+  for (const mode of MODES) {
+    const scale = draft[mode].scale;
+    for (let i = 1; i < scale.length; i++) {
+      const previous = scale[i - 1];
+      const current = scale[i];
+      if (!previous || !current) continue;
+      if (Math.abs(current.lc) >= Math.abs(previous.lc) - 0.5) continue;
+
+      const roles = profile.roles
+        .filter((r) => r.index[mode] === i || r.index[mode] === i - 1)
+        .map((r) => r.label);
+
+      findings.push({
+        id: `ramp-inversion-${mode}-${i}`,
+        severity: "warning",
+        category: "contrast",
+        mode,
+        message: `Step ${i} has less contrast than step ${i - 1} — the ${mode} ramp doubles back.`,
+        detail: `${previous.hex} at Lc ${Math.abs(previous.lc).toFixed(0)}, then ${current.hex} at Lc ${Math.abs(current.lc).toFixed(0)}${roles.length ? ` (${roles.join(", ")})` : ""}. Usually a pinned role pulling the ramp toward the background while a neighbouring step is held out by its own WCAG floor. Pin to a different role, or to a colour closer to what this position expects.`,
+      });
+    }
+  }
+
+  return findings;
+}
+
 function visibilityFindings(profile: Profile, draft: Draft): Finding[] {
   const findings: Finding[] = [];
 
@@ -396,6 +447,7 @@ export function auditDraft(profile: Profile, draft: Draft, family: SeededIntent[
     ...cvdFindings(profile, family, draft.name),
     ...familyFindings(profile, draft, siblings),
     ...visibilityFindings(profile, draft),
+    ...rampFindings(profile, draft),
   ].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
 }
 

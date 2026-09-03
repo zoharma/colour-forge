@@ -2,6 +2,7 @@
 
 import { apcaHex, apcaYHex } from "./apca";
 import { hexToOklch } from "./oklch";
+import { pinnedCurves, pinnedStep, type PinSpec } from "./pin";
 import { solveStep, type ContrastPolicy, type SolvedStep, type StepContext } from "./solver";
 import { WCAG_MINIMUM, meetsWcag, wcagRatioHex, type WcagRequirement } from "./wcag";
 import type { ModeKey, Profile, RoleDef } from "../profiles/types";
@@ -33,6 +34,7 @@ export function generateScale(
   mode: ModeKey,
   seedHex: string,
   policy: ContrastPolicy = "wcag-strict",
+  pin?: PinSpec,
 ): SolvedStep[] {
   const { H, C } = hexToOklch(seedHex);
   const modeSpec = profile.modes[mode];
@@ -40,17 +42,36 @@ export function generateScale(
   const backgroundIsLight = backgroundY > LIGHT_BACKGROUND_Y;
   const requirements = requirementsByIndex(profile, mode);
 
+  // A pin applies to one mode only. The other is solved exactly as it would
+  // be otherwise — a single hex cannot be the right colour against both a
+  // white page and a near-black one, and forcing it into both is how a pinned
+  // palette ends up wrong in whichever mode nobody was looking at.
+  const pinnedRole = pin?.mode === mode ? profile.roles.find((r) => r.key === pin.roleKey) : undefined;
+  const pinnedIndex = pinnedRole?.index[mode];
+
+  const curves =
+    pinnedIndex === undefined
+      ? { targetLc: modeSpec.targetLc, chromaMultiplier: modeSpec.chromaMultiplier }
+      : pinnedCurves(profile, mode, seedHex, pinnedIndex);
+
   return Array.from({ length: profile.scaleSize }, (_, i) => {
+    const requirement = requirements[i] ?? "none";
+    const targetLc = curves.targetLc[i] ?? 0;
+
+    if (i === pinnedIndex) {
+      return pinnedStep(profile, mode, seedHex, targetLc, requirement);
+    }
+
     const ctx: StepContext = {
       hue: H,
-      chroma: C * (modeSpec.chromaMultiplier[i] ?? 1),
+      chroma: C * (curves.chromaMultiplier[i] ?? 1),
       backgroundHex: modeSpec.background,
       backgroundY,
       backgroundIsLight,
-      requirement: requirements[i] ?? "none",
+      requirement,
       policy,
     };
-    return solveStep(ctx, modeSpec.targetLc[i] ?? 0);
+    return solveStep(ctx, targetLc);
   });
 }
 
@@ -165,6 +186,7 @@ export interface Draft {
   name: string;
   seedHex: string;
   policy: ContrastPolicy;
+  pin?: PinSpec;
   seedOklch: ReturnType<typeof hexToOklch>;
   light: ModeResult;
   dark: ModeResult;
@@ -177,9 +199,10 @@ export function buildDraft(
   name: string,
   seedHex: string,
   policy: ContrastPolicy = "wcag-strict",
+  pin?: PinSpec,
 ): Draft {
   const forMode = (mode: ModeKey): ModeResult => {
-    const scale = generateScale(profile, mode, seedHex, policy);
+    const scale = generateScale(profile, mode, seedHex, policy, pin);
     const roles = computeRoles(profile, mode, scale);
     const foregrounds: Record<string, ForegroundCandidate[]> = {};
     for (const role of foregroundRoles(profile)) {
@@ -193,6 +216,7 @@ export function buildDraft(
     name,
     seedHex,
     policy,
+    pin,
     seedOklch: hexToOklch(seedHex),
     light: forMode("light"),
     dark: forMode("dark"),

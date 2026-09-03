@@ -80,6 +80,33 @@ that has to reach whoever implements it. The audit names what the ratio is
 legal for and what obligation comes with it, and the same note is written into
 the exported CSS so it survives the paste into a token file.
 
+## Pinning the seed to a role
+
+Sometimes the colour is not a suggestion. A brand colour arrives fixed and the
+job is "this exact hex has to be the button fill, build the rest around it",
+which is a different question from "here is a hue, give me a ramp".
+
+Off by default, and it pins **one role in one mode**. That constraint is the
+whole feature: a single hex cannot be right against both a white page and a
+near-black one, so pinning both modes at once leaves whichever mode nobody was
+looking at wrong. The unpinned mode is solved exactly as it would be
+otherwise — which is the point of solving the two independently at all.
+
+The tool suggests where the colour would sit rather than deciding. That is
+useful even when you then pin nothing: seeding Diamond's own `#0a858e` reports
+"closest to Solid in dark", which is where Diamond in fact ships it.
+
+Two things it does not do:
+
+- **It does not exempt the colour from being checked.** A pinned value that
+  cannot carry its role is the most useful thing the tool can tell you, so it
+  is measured like anything else and reported as a blocker naming the way out.
+- **It does not let the ramp double back.** Pinning remaps each half of the
+  target curve into the space the pinned step leaves it, so the endpoints stay
+  where the profile put them and no two steps collapse onto one colour. Where
+  a neighbouring step is held out by its own WCAG floor and the ramp inverts
+  anyway, that is reported rather than shipped quietly.
+
 ### WCAG requirements come from usage
 
 "Is 4.5:1 required here" is a question about how a role is used, not about the

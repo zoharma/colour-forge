@@ -84,7 +84,11 @@ export type ContrastVerdict =
   | "wcag-bound"
   /** No lightness for this hue satisfies WCAG 2.2 for this usage. Needs a
    *  different hue, a different background, or a different role. */
-  | "below-both";
+  | "below-both"
+  /** Not solved at all: a person pinned this exact colour to this role. The
+   *  measurements are still real, and still reported — pinning decides the
+   *  colour, it does not exempt it from being checked. */
+  | "pinned";
 
 /** Whether the colour meets what its role is required to clear — kept apart
  *  from `verdict`, which says what decided the colour. A step can be decided
@@ -363,6 +367,7 @@ export function solveStep(ctx: StepContext, idealTargetLc: number): SolvedStep {
 }
 
 export const VERDICT_LABELS: Record<ContrastVerdict, string> = {
+  pinned: "Pinned to the seed colour",
   "apca-met": "APCA target met",
   "hue-protected": "Eased off APCA to keep the hue",
   "wcag-bound": "Held up by WCAG 2.2",
@@ -370,6 +375,8 @@ export const VERDICT_LABELS: Record<ContrastVerdict, string> = {
 };
 
 export const VERDICT_EXPLANATIONS: Record<ContrastVerdict, string> = {
+  pinned:
+    "This is the seed colour itself, placed here because you pinned it. Everything else in this mode was solved around it. The numbers beside it are measured, not targeted — if they fall short, the pinned colour does not suit this role.",
   "apca-met": "Reached the profile's APCA target with the colour's chroma intact.",
   "hue-protected":
     "Hitting the APCA target would have cost this hue too much chroma, so the target was eased off to the point where the colour still reads as itself. Still clears WCAG 2.2 for how this role is used.",
