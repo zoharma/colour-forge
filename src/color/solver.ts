@@ -63,6 +63,24 @@ export interface SolvedStep {
  *  orange recognisably orange at a small contrast cost. */
 export const CHROMA_RETENTION_FLOOR = 0.85;
 
+/** Retention alone is the wrong trigger, because it is a ratio and says
+ *  nothing about how much colour is actually at stake.
+ *
+ *  Near white the sRGB gamut holds almost no chroma at all, so a pale tint
+ *  asked for 0.039 and given 0.011 scores a retention of 0.29 and trips the
+ *  floor — but the 0.028 it "lost" is invisible in a near-white, and easing
+ *  the contrast target does not recover any of it, because the lightness
+ *  that eases toward is exactly where the gamut is narrowest. Left on
+ *  retention alone the solver pays the full contrast cost, gains nothing,
+ *  and collapses neighbouring pale steps onto the same colour.
+ *
+ *  So the relaxation has to earn its keep: it is only taken if it actually
+ *  produces meaningfully more chroma than solving at the target did. That is
+ *  self-checking rather than another tuned threshold — it fires hard for a
+ *  yellow or an orange, which genuinely do recover their character at a
+ *  lower target, and not at all for a tint that had no chroma to lose. */
+const MIN_CHROMA_GAIN = 0.01;
+
 /** Ceiling for the upward search when WCAG needs more than APCA asked for.
  *  Above ~108 nothing in sRGB moves. */
 const MAX_TARGET_LC = 108;
@@ -168,7 +186,14 @@ export function solveStep(ctx: StepContext, idealTargetLc: number): SolvedStep {
   // The hue cannot reach its APCA target without washing out. Ease off as far
   // as it needs — then put WCAG under it as a floor.
   const relaxed = highestTargetKeepingChroma(ctx, idealTargetLc);
-  if (clearsWcag(solveAtTarget(ctx, relaxed), ctx.requirement)) {
+  const relaxedStep = solveAtTarget(ctx, relaxed);
+
+  // Only worth the contrast if it recovers chroma someone can see.
+  if (relaxedStep.chroma - ideal.chroma < MIN_CHROMA_GAIN) {
+    return finish(idealTargetLc, "apca-met");
+  }
+
+  if (clearsWcag(relaxedStep, ctx.requirement)) {
     return finish(relaxed, "hue-protected");
   }
 

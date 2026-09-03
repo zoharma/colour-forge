@@ -198,6 +198,19 @@ describe("solver: APCA target with a WCAG floor", () => {
     expect(L).toBeLessThan(0.85); // not almost-white
   });
 
+  it("does not trade contrast away for chroma it cannot recover", () => {
+    // Near white the gamut holds almost no chroma, so a pale step scores a
+    // terrible retention ratio while having nothing real to lose. Easing the
+    // target off there pays full contrast and gains nothing, and used to
+    // collapse neighbouring pale steps onto one colour.
+    const pale = context("#3f63c9", "#fbfbfd", "none");
+    const stepA = solveStep({ ...pale, chroma: pale.chroma * 0.24 }, 8);
+    const stepB = solveStep({ ...pale, chroma: pale.chroma * 0.4 }, 16);
+    expect(stepA.hex).not.toBe(stepB.hex);
+    expect(Math.abs(stepA.lc)).toBeCloseTo(8, 0);
+    expect(Math.abs(stepB.lc)).toBeCloseTo(16, 0);
+  });
+
   it("raises contrast above the APCA target when WCAG demands more", () => {
     const step = solveStep(context("#3f63c9", "#ffffff", "body"), 20);
     expect(step.verdict).toBe("wcag-bound");
@@ -258,6 +271,38 @@ describe("scale generation", () => {
       });
     });
   }
+});
+
+describe("fidelity to real shipped tokens", () => {
+  // The Diamond curves were fitted to DiamondDSTokens.css, so regenerating a
+  // shipped intent from its own seed should land near the real value. This is
+  // the check that catches a solver change quietly drifting the output.
+  const near = (a: string, b: string, tolerance: number) => {
+    const oa = hexToOklch(a);
+    const ob = hexToOklch(b);
+    expect(Math.abs(oa.L - ob.L), `${a} vs ${b} lightness`).toBeLessThan(tolerance);
+  };
+
+  it("reproduces Diamond's shipped primary container and base", () => {
+    const draft = buildDraft(diamondProfile, "primary", "#3f63c9");
+    near(draft.light.roles.container!.hex, "#e5ebff", 0.03);
+    near(draft.light.roles.base!.hex, "#2a4db8", 0.06);
+  });
+
+  it("keeps the light scale strictly ordered", () => {
+    for (const profile of [genericProfile, diamondProfile]) {
+      for (const mode of MODES) {
+        const scale = generateScale(profile, mode, "#3f63c9");
+        const lightness = scale.map((s) => hexToOklch(s.hex).L);
+        for (let i = 1; i < lightness.length; i++) {
+          expect(lightness[i], `${profile.id}/${mode} step ${i} duplicates step ${i - 1}`).not.toBeCloseTo(
+            lightness[i - 1] as number,
+            3,
+          );
+        }
+      }
+    }
+  });
 });
 
 describe("foreground pairing", () => {
