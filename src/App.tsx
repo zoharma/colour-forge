@@ -11,7 +11,8 @@ import { buildDraft } from "./color/scale";
 import { suggestPin, type PinSpec } from "./color/pin";
 import { isValidHex, normaliseHex } from "./color/srgb";
 import { DEFAULT_PROFILE_ID, PROFILES, findProfile, type ModeKey, type SeededIntent } from "./profiles";
-import { CvdControl } from "./ui/CvdControl";
+import { CVD_LABELS } from "./color/cvd";
+import { CvdControl, CVD_NOTES } from "./ui/CvdControl";
 import { ExportPanel } from "./ui/ExportPanel";
 import { FamilyTable } from "./ui/FamilyTable";
 import { Findings } from "./ui/Findings";
@@ -169,19 +170,29 @@ export function App() {
               against APCA, WCAG 2.2 and colour-vision deficiency before it reaches a token file.
             </p>
           </div>
-          <div className="segmented" role="group" aria-label="Page theme">
-            {(["system", "light", "dark"] as ThemeChoice[]).map((choice) => (
-              <button
-                key={choice}
-                type="button"
-                aria-pressed={theme === choice}
-                onClick={() => setTheme(choice)}
-              >
-                {choice}
-              </button>
-            ))}
+          <div className="view-controls">
+            <div className="segmented" role="group" aria-label="Page theme">
+              {(["system", "light", "dark"] as ThemeChoice[]).map((choice) => (
+                <button
+                  key={choice}
+                  type="button"
+                  aria-pressed={theme === choice}
+                  onClick={() => setTheme(choice)}
+                >
+                  {choice}
+                </button>
+              ))}
+            </div>
+            <CvdControl view={cvdView} onChange={setCvdView} />
           </div>
         </header>
+
+        {cvdView !== "none" && (
+          <p className="banner" aria-live="polite">
+            <strong>Simulating {CVD_LABELS[cvdView].toLowerCase()}.</strong> {CVD_NOTES[cvdView]} Every
+            number on the page is still measured from the real colours. Only what you see is simulated.
+          </p>
+        )}
 
         <section>
           <p className="eyebrow">Input</p>
@@ -246,12 +257,6 @@ export function App() {
                 </div>
               </div>
 
-              <div>
-                <span className="field-label" id="cvd-label">
-                  Simulate colour vision
-                </span>
-                <CvdControl view={cvdView} onChange={setCvdView} />
-              </div>
             </div>
 
             <div style={{ marginTop: 16 }}>
@@ -320,19 +325,6 @@ export function App() {
         </section>
 
         <section>
-          <p className="eyebrow">Verdict</p>
-          <h2 className="section-title">What the checks found</h2>
-          <p className="section-note">
-            A measuring tool, not an optimiser. A sweep that only maximises separation reliably breaks
-            hue-family consistency and sibling parity, so these are trade-offs to make deliberately rather
-            than corrections to apply.
-          </p>
-          <div className="card">
-            <Findings findings={findings} />
-          </div>
-        </section>
-
-        <section>
           <p className="eyebrow">Cross-check</p>
           <h2 className="section-title">The family it has to live in</h2>
           <p className="section-note">
@@ -354,6 +346,19 @@ export function App() {
             <div style={{ marginTop: 18 }}>
               <SeparationTable rows={rows} />
             </div>
+          </div>
+        </section>
+
+        <section>
+          <p className="eyebrow">Verdict</p>
+          <h2 className="section-title">What the checks found</h2>
+          <p className="section-note">
+            A measuring tool, not an optimiser. A sweep that only maximises separation reliably breaks
+            hue-family consistency and sibling parity, so these are trade-offs to make deliberately rather
+            than corrections to apply.
+          </p>
+          <div className="card">
+            <Findings findings={findings} />
           </div>
         </section>
 

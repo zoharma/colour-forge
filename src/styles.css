@@ -149,6 +149,25 @@ header.top p {
   max-width: 56ch;
 }
 
+.view-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* The two "how am I looking at this" controls, sized to sit together. */
+.view-select {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: 6px 8px;
+  border-radius: 7px;
+  border: 1px solid var(--line-strong);
+  background: var(--panel-sunken);
+  color: var(--ink);
+  max-width: 100%;
+}
+
 .segmented {
   display: flex;
   /* Five options (Normal/Prota/Deute/Trita/Achro) do not fit across a 320px
