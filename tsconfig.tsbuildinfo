@@ -1,0 +1,1 @@
+{"root":["./src/color/apca.ts","./src/color/audit.ts","./src/color/cvd.ts","./src/color/export.ts","./src/color/oklch.ts","./src/color/scale.ts","./src/color/solver.ts","./src/color/srgb.ts","./src/color/wcag.ts","./src/profiles/diamond.ts","./src/profiles/generic.ts","./src/profiles/index.ts","./src/profiles/types.ts","./test/color.test.ts","./vite.config.ts"],"version":"5.9.3"}
