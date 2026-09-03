@@ -1,6 +1,6 @@
 import { simulateCvdHex, type CvdView } from "../color/cvd";
 import type { Draft } from "../color/scale";
-import type { ModeKey, Profile } from "../profiles/types";
+import { displayStep, type ModeKey, type Profile } from "../profiles/types";
 import { ApcaBadge, VerdictBadge, WcagBadge } from "./Badges";
 import { ForegroundPicker } from "./ForegroundPicker";
 import { Preview } from "./Preview";
@@ -43,7 +43,7 @@ export function ScalePanel({ profile, draft, mode, cvdView, foregroundOverrides,
       <div className="scale-strip" role="list" aria-label={`${mode} mode scale, ${result.scale.length} steps`}>
         {result.scale.map((step, i) => {
           const roles = profile.roles.filter((r) => r.index[mode] === i).map((r) => r.label);
-          const label = `Step ${i}: ${step.hex}${roles.length ? `, used by ${roles.join(" and ")}` : ", unassigned"}`;
+          const label = `Step ${displayStep(i)}: ${step.hex}${roles.length ? `, used by ${roles.join(" and ")}` : ", unassigned"}`;
           return (
             <div
               key={i}
@@ -53,7 +53,7 @@ export function ScalePanel({ profile, draft, mode, cvdView, foregroundOverrides,
               title={`${label}. APCA Lc ${step.lc.toFixed(0)}, WCAG ${step.wcagRatio.toFixed(2)}:1`}
             >
               <span className="idx" style={{ color: onSurface }} aria-hidden="true">
-                {i}
+                {displayStep(i)}
               </span>
               <span className="visually-hidden">{label}</span>
             </div>

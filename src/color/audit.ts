@@ -11,7 +11,14 @@ import { hexToOklch, hueDelta } from "./oklch";
 import { rgbDistanceHex } from "./srgb";
 import { chosenForeground, type Draft } from "./scale";
 import { WCAG_CRITERION, meetsWcag, permittedUsage, wcagRatioHex } from "./wcag";
-import { separationFloorFor, separationSeverityFor, type ModeKey, type Profile, type SeededIntent } from "../profiles/types";
+import {
+  displayStep,
+  separationFloorFor,
+  separationSeverityFor,
+  type ModeKey,
+  type Profile,
+  type SeededIntent,
+} from "../profiles/types";
 
 export type Severity = "blocker" | "warning" | "note";
 
@@ -384,7 +391,7 @@ function rampFindings(profile: Profile, draft: Draft): Finding[] {
         severity: "warning",
         category: "contrast",
         mode,
-        message: `Step ${i} has less contrast than step ${i - 1} — the ${mode} ramp doubles back.`,
+        message: `Step ${displayStep(i)} has less contrast than step ${displayStep(i - 1)} — the ${mode} ramp doubles back.`,
         detail: `${previous.hex} at Lc ${Math.abs(previous.lc).toFixed(0)}, then ${current.hex} at Lc ${Math.abs(current.lc).toFixed(0)}${roles.length ? ` (${roles.join(", ")})` : ""}. Usually a pinned role pulling the ramp toward the background while a neighbouring step is held out by its own WCAG floor. Pin to a different role, or to a colour closer to what this position expects.`,
       });
     }

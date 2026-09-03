@@ -151,6 +151,10 @@ header.top p {
 
 .segmented {
   display: flex;
+  /* Five options (Normal/Prota/Deute/Trita/Achro) do not fit across a 320px
+     phone on one line, and an unwrapped flex row pushes the page wide rather
+     than breaking. */
+  flex-wrap: wrap;
   gap: 2px;
   border: 1px solid var(--line-strong);
   border-radius: 7px;
@@ -230,6 +234,16 @@ h2.section-title {
   align-items: flex-end;
 }
 
+/* Flex items default to min-width:auto, so a control refuses to shrink below
+   its intrinsic width — and a <select> takes that from its longest option
+   ("Generic (design-system agnostic)"), which is wider than a 320px phone.
+   max-width:100% cannot help while the parent is being sized by the child.
+   min-width:0 lets the item shrink; then the cap on the control applies. */
+.input-row > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
 label.field-label,
 .field-label {
   display: block;
@@ -257,6 +271,8 @@ select {
   font-family: var(--font-ui);
   cursor: pointer;
   max-width: 100%;
+  /* Truncate rather than push the page wide when the name is long. */
+  text-overflow: ellipsis;
 }
 
 input[type="color"] {
@@ -467,6 +483,14 @@ th {
 
 .scroll-x {
   overflow-x: auto;
+  /* Load-bearing. Without it the scroller is not a containing block, so the
+     absolutely-positioned .visually-hidden labels inside these wide tables
+     escape its clip, keep their static position out at the table's real
+     width, and stretch the whole document sideways — 719px of page on a
+     375px phone, with nothing visible out there to explain it. The table
+     itself was scrolling correctly the entire time; it was the screen-reader
+     text leaking past the clip. */
+  position: relative;
 }
 
 .hexfield {

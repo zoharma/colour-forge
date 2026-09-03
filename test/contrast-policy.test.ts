@@ -122,9 +122,12 @@ describe("full-scale export", () => {
     const { exportScaleCss } = await import("../src/color/export");
     const draft = buildDraft(genericProfile, "coolant", "#0a858e");
     const css = exportScaleCss(genericProfile, draft);
-    for (let i = 0; i < genericProfile.scaleSize; i++) {
+    // Numbered 1..12, the way people count a scale — not 0..11.
+    expect(css).not.toContain("--color-coolant-step-0:");
+    for (let i = 1; i <= genericProfile.scaleSize; i++) {
       expect(css).toContain(`--color-coolant-step-${i}:`);
     }
+    expect(css).toContain(`--color-coolant-step-${genericProfile.scaleSize}:`);
     expect(css.match(/#[0-9a-f]{6}/g)?.length).toBe(genericProfile.scaleSize * 2);
   });
 

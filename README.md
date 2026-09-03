@@ -176,11 +176,18 @@ Every step of both ramps is listed with its hex, not just as a swatch strip —
 half the value of generating twelve steps is the ones no role is named for (a
 chart series, a hover state, a role that does not exist yet), and those are
 unreachable if the only way to read a value is to hover a square. The **Full
-scale** export writes them as `--{intent}-step-N`. Deliberately not `N00`: a
-`-500` token meaning "step 5 of 12" next to a Material 500 seed picker is a
-trap. A step index is a position in the role ramp, not a fixed lightness — the
-modes are solved independently, so step 0 is the palest tint in light and the
-deepest in dark.
+scale** export writes them as `--{intent}-step-N`, numbered **1–12**.
+
+Deliberately not `N00`: a `-500` token meaning "step 5 of 12" next to a
+Material 500 seed picker is a trap. And a step number is a position in the
+role ramp, not a fixed lightness — the modes are solved independently, so step
+1 is the palest tint in light and the deepest in dark.
+
+Steps are stored 0-based internally, because they index arrays, and shown
+1-based everywhere a person reads them. `displayStep()` in
+`src/profiles/types.ts` is the single crossing point; mixing the two
+conventions is how a "step 5" in a conversation stops matching a "step 5" in a
+token file.
 
 Profile, intent name, seed and contrast policy live in the URL hash, so a
 colour under discussion can be sent to someone rather than described.

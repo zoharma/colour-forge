@@ -1,6 +1,6 @@
 import { simulateCvdHex, type CvdView } from "../color/cvd";
 import type { Draft } from "../color/scale";
-import type { ModeKey, Profile } from "../profiles/types";
+import { displayStep, type ModeKey, type Profile } from "../profiles/types";
 import { ApcaBadge, VerdictBadge, WcagBadge } from "./Badges";
 
 interface Props {
@@ -46,7 +46,7 @@ export function ScaleTable({ profile, draft, cvdView }: Props) {
           {Array.from({ length: profile.scaleSize }, (_, i) => (
             <tr key={i}>
               <th scope="row" style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>
-                {i}
+                {displayStep(i)}
               </th>
               {modes.map((mode) => {
                 const step = draft[mode].scale[i];

@@ -3,7 +3,7 @@
 
 import { chosenForeground, type Draft } from "./scale";
 import { WCAG_CRITERION, permittedUsage } from "./wcag";
-import type { ModeKey, Profile } from "../profiles/types";
+import { displayStep, type ModeKey, type Profile } from "../profiles/types";
 
 const substitute = (template: string, intent: string): string => template.replaceAll("{intent}", intent);
 
@@ -84,7 +84,7 @@ export function exportScaleCss(profile: Profile, draft: Draft, options: ExportOp
         // palette front and centre, and a `-500` token that means "step 5 of
         // 12" rather than "Material 500" is a trap laid for whoever reads the
         // file next.
-        return `${note}  ${prefix}-${intent}-step-${i}: ${step.hex};`;
+        return `${note}  ${prefix}-${intent}-step-${displayStep(i)}: ${step.hex};`;
       })
       .join("\n");
 
@@ -92,7 +92,8 @@ export function exportScaleCss(profile: Profile, draft: Draft, options: ExportOp
   return (
     `${header}/* Full ${profile.scaleSize}-step scale: every step the solver produced,\n` +
     `   including the ones no role claims.\n\n` +
-    `   A step index is a position in the role ramp, NOT a fixed lightness. The\n` +
+    `   Steps are numbered 1-${profile.scaleSize}. A step number is a position in the role\n` +
+    `   ramp, NOT a fixed lightness. The\n` +
     `   two modes are solved independently, so step 0 is the palest tint in\n` +
     `   light and the deepest in dark — the same index carries the same role in\n` +
     `   both, which is the point, but they are not each other's inverse. */\n\n` +

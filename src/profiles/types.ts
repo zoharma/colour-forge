@@ -115,3 +115,11 @@ export const separationFloorFor = (role: RoleDef): number =>
  *  two indistinguishable status colours are. */
 export const separationSeverityFor = (role: RoleDef): "blocker" | "warning" =>
   role.requirement === "none" ? "warning" : "blocker";
+
+/** Scale steps are stored 0-based, because they index arrays, and shown
+ *  1-based, because that is how people count a 12-step scale — and how the
+ *  original tool numbered it. Everything user-facing goes through this:
+ *  swatch labels, the step table, exported token names, findings. Getting the
+ *  two conventions mixed is how a "step 5" in a conversation stops matching a
+ *  "step 5" in a token file. */
+export const displayStep = (index: number): number => index + 1;
