@@ -2,7 +2,7 @@
  *  convention. Output only — nothing is written back to any file. */
 
 import { chosenForeground, type Draft } from "./scale";
-import { WCAG_CRITERION, permittedUsage } from "./wcag";
+import { WCAG_CRITERION, meetsWcag, permittedUsage } from "./wcag";
 import { displayStep, type ModeKey, type Profile } from "../profiles/types";
 
 const substitute = (template: string, intent: string): string => template.replaceAll("{intent}", intent);
@@ -34,17 +34,50 @@ function blockFor(profile: Profile, draft: Draft, mode: ModeKey, options: Export
     const step = draft[mode].roles[role.key];
     if (!step) continue;
 
-    // A deliberate miss is annotated whether or not measurements were asked
-    // for: it is a decision someone made, and it has to survive the paste
-    // into a token file rather than living only in this session's UI.
-    const belowAa =
-      step.conformance === "meets"
-        ? ""
-        : `  /* Below ${WCAG_CRITERION[step.requirement]} at ${step.wcagRatio.toFixed(2)}:1 — kept for hue.\n     Legal for ${permittedUsage(step.wcagRatio)}. Needs a non-colour cue. */\n`;
+    // A miss is annotated whether or not measurements were asked for: it is a
+    // decision someone made, and it has to survive the paste into a token file
+    // rather than living only in this session's UI.
+    //
+    // With the reason it actually had. "Kept for hue" is true of the policy
+    // exemption and false of the other two: a step that cannot reach the
+    // criterion at any lightness traded nothing away, and a pinned one is a
+    // colour a human fixed by hand. Baking the wrong reason into a token file
+    // is worse than baking in none, because the next reader believes it.
+    // Against the role's requirement, matching the `moved` note below and the
+    // JSON. A fill that slid onto another role's step carries the step's
+    // requirement, which can be a different criterion from the one this token
+    // is actually held to, and the two would then contradict each other in one
+    // declaration.
+    const requirement = role.requirement;
+    const meetsRequirement = meetsWcag(step.wcagRatio, requirement);
+    const reason =
+      step.verdict === "pinned"
+        ? "this exact colour was pinned to this role"
+        : step.verdict === "below-both"
+          ? "no lightness of this hue reaches it"
+          : "kept for hue";
+    const belowAa = meetsRequirement
+      ? ""
+      : `  /* Below ${WCAG_CRITERION[requirement]} at ${step.wcagRatio.toFixed(2)}:1 — ${reason}.\n     Legal for ${permittedUsage(step.wcagRatio)}. Needs a non-colour cue. */\n`;
     const comment = options.includeMeasurements
       ? `  /* APCA Lc ${step.lc.toFixed(0)}, WCAG ${step.wcagRatio.toFixed(2)}:1 vs background */\n`
       : "";
+
+    // A fill that followed the hue is not the step the profile names, and the
+    // border it may now need is an implementation obligation rather than a
+    // value. Both have to survive the paste into a token file, so they are
+    // annotated unconditionally rather than only under includeMeasurements.
+    const moved =
+      role.wantsSaturation && step.stepIndex !== role.index[mode]
+        ? `  /* Follows this hue's peak: step ${displayStep(step.stepIndex)}, not the profile's step ${displayStep(role.index[mode])}.\n` +
+          (meetsWcag(step.wcagRatio, role.requirement)
+            ? `     Still ${step.wcagRatio.toFixed(2)}:1 against the page. */`
+            : `     ${step.wcagRatio.toFixed(2)}:1 against the page, under ${WCAG_CRITERION[role.requirement]}. Needs a border to\n` +
+              `     define its edge — 1.4.11 asks for a perceivable boundary, not a contrasting fill. */`)
+        : "";
+
     lines.push(...(belowAa ? [belowAa.trimEnd()] : []));
+    lines.push(...(moved ? [moved] : []));
     lines.push(`${comment}  ${substitute(role.cssVar, intent)}: ${step.hex};`);
 
     if (role.needsForeground && role.foregroundCssVar) {
@@ -76,7 +109,9 @@ export function exportScaleCss(profile: Profile, draft: Draft, options: ExportOp
   const block = (mode: ModeKey) =>
     draft[mode].scale
       .map((step, i) => {
-        const roles = profile.roles.filter((r) => r.index[mode] === i).map((r) => r.label);
+        const roles = profile.roles
+          .filter((r) => draft[mode].roles[r.key]?.stepIndex === i)
+          .map((r) => r.label);
         const note = options.includeMeasurements
           ? `  /* ${roles.length ? roles.join(", ") : "spare"} — APCA Lc ${step.lc.toFixed(0)}, WCAG ${step.wcagRatio.toFixed(2)}:1 */\n`
           : "";
@@ -118,6 +153,10 @@ export function exportJson(profile: Profile, draft: Draft, options: ExportOption
       string,
       {
         value: string;
+        /** Which step of the ramp the role actually took, which is not always
+         *  the one the profile declares — a filled role following the hue's
+         *  peak moves. */
+        step?: number;
         apcaLc: number;
         wcagRatio: number;
         verdict: string;
@@ -129,13 +168,29 @@ export function exportJson(profile: Profile, draft: Draft, options: ExportOption
     for (const role of profile.roles) {
       const step = draft[mode].roles[role.key];
       if (!step) continue;
+      // Reported against the role's own requirement, not the step's.
+      // A fill that followed the hue lands on a step that usually has no
+      // requirement of its own, and taking the step's answer would file a
+      // 1.75:1 fill as conformant because the position it moved onto was never
+      // asked to carry anything. Following the hue is a choice to go below,
+      // the same as the policy exemption, and is recorded as one.
+      const meetsRole = meetsWcag(step.wcagRatio, role.requirement);
+      // "Unavoidable" and "by choice" are different facts about a token, and
+      // collapsing them re-introduced in JSON the mislabel the CSS reason
+      // selection exists to prevent.
+      const conformance = meetsRole
+        ? step.conformance
+        : step.verdict === "below-both"
+          ? "below-unavoidable"
+          : "below-by-choice";
       out[substitute(role.cssVar, intent)] = {
         value: step.hex,
+        step: displayStep(step.stepIndex),
         apcaLc: Number(step.lc.toFixed(1)),
         wcagRatio: Number(step.wcagRatio.toFixed(2)),
         verdict: step.verdict,
-        requirement: step.requirement,
-        conformance: step.conformance,
+        requirement: role.requirement,
+        conformance,
         permittedUsage: permittedUsage(step.wcagRatio),
       };
       if (role.needsForeground && role.foregroundCssVar) {

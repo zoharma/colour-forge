@@ -258,14 +258,30 @@ describe("scale generation", () => {
       it("meets each role's own WCAG requirement for a range of hues", () => {
         for (const seed of ["#3f63c9", "#d63c41", "#1b8834", "#e97b12", "#0a858e", "#b0008e", "#fcd021"]) {
           const draft = buildDraft(profile, "draft", seed);
+          const findings = auditDraft(profile, draft, [draftAsIntent(profile, draft)]);
+
           for (const mode of MODES) {
             for (const role of profile.roles) {
               const step = draft[mode].roles[role.key];
               if (!step || step.verdict === "below-both") continue;
+              const where = `${profile.id}/${mode}/${role.key}/${seed} (${step.hex}) ${step.verdict}`;
+              if (step.wcagRatio >= WCAG_MINIMUM[role.requirement] - 1e-6) continue;
+
+              // Exactly one exception is allowed, and it is worth stating in
+              // full because it is the only place in the tool where a role is
+              // knowingly returned below its requirement: a filled role, light
+              // mode only, that moved off its declared step to keep the hue.
+              // On a dark page the bright form is already far above the floor,
+              // so a miss there would be a bug rather than a trade.
+              expect(role.wantsSaturation, where).toBe(true);
+              expect(mode, where).toBe("light");
+              expect(step.stepIndex, where).not.toBe(role.index[mode]);
+              // And never silently. The border is what makes it conformant, so
+              // an unreported one would be the tool hiding its own trade.
               expect(
-                step.wcagRatio,
-                `${profile.id}/${mode}/${role.key}/${seed} (${step.hex}) ${step.verdict}`,
-              ).toBeGreaterThanOrEqual(WCAG_MINIMUM[role.requirement] - 1e-6);
+                findings.some((f) => f.id === `fill-placement-light-${role.key}`),
+                where,
+              ).toBe(true);
             }
           }
         }
@@ -348,9 +364,13 @@ describe("audit", () => {
   });
 
   it("clears a colour that collides with nothing in the family", () => {
-    // A magenta, in the one part of the wheel Diamond's nine intents leave
-    // free. Nothing to flag, so nothing should be flagged.
-    const draft = buildDraft(diamondProfile, "draft", "#a4479e");
+    // Diamond's nine intents leave very little of the wheel free: sweeping
+    // every 5 degrees, this is the only hue with no collision at all. The
+    // seed used to be #a4479e, which cleared the floor by 0.9 and stopped
+    // clearing it once the chroma curve started following each hue's cusp.
+    // Worth knowing why: more chroma in a magenta means more red, protanopia
+    // removes red, so a *more* saturated magenta collapses closer to blue.
+    const draft = buildDraft(diamondProfile, "draft", "#b33f7f");
     const family = [...diamondProfile.family, draftAsIntent(diamondProfile, draft)];
     const blockers = auditDraft(diamondProfile, draft, family).filter((f) => f.severity === "blocker");
     expect(blockers.map((b) => b.message)).toEqual([]);
@@ -361,7 +381,7 @@ describe("audit", () => {
     // of every other one — Diamond ships tertiary and brand containers 3
     // apart. Holding washes to the same floor as meaning-bearing colour
     // condemns the whole system and buries the findings that matter.
-    const draft = buildDraft(diamondProfile, "draft", "#a4479e");
+    const draft = buildDraft(diamondProfile, "draft", "#b33f7f");
     const family = [...diamondProfile.family, draftAsIntent(diamondProfile, draft)];
     const containerBlockers = auditDraft(diamondProfile, draft, family).filter(
       (f) => f.category === "cvd" && f.role === "container" && f.severity === "blocker",

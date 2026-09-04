@@ -34,6 +34,8 @@ const base: Omit<Profile, "family"> = {
       onSurface: "#e8eaf0",
       targetLc: [3, 8, 15, 24, 34, 48, 62, 74, 84, 90, 94, 98],
       chromaMultiplier: [0.3, 0.55, 0.78, 0.95, 1.2, 1.1, 1.0, 0.8, 0.6, 0.5, 0.42, 0.36],
+      // Held off the gamut hull: see chromaHeadroom on ProfileMode.
+      chromaHeadroom: 0.9,
       selector: '[data-theme="dark"]',
     },
   },
@@ -79,6 +81,7 @@ const base: Omit<Profile, "family"> = {
     },
     {
       key: "fill",
+      wantsSaturation: true,
       label: "Fill",
       index: { light: 6, dark: 4 },
       usage: "surface",

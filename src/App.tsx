@@ -5,11 +5,13 @@ import type { CvdView } from "./color/cvd";
 import {
   POLICY_DESCRIPTIONS,
   POLICY_LABELS,
+  isContrastPolicy,
   type ContrastPolicy,
 } from "./color/solver";
 import { buildDraft } from "./color/scale";
 import { suggestPin, type PinSpec } from "./color/pin";
 import { isValidHex, normaliseHex } from "./color/srgb";
+import { isCvdView } from "./color/cvd";
 import { DEFAULT_PROFILE_ID, PROFILES, findProfile, type ModeKey, type SeededIntent } from "./profiles";
 import { CVD_LABELS } from "./color/cvd";
 import { CvdControl, CVD_NOTES } from "./ui/CvdControl";
@@ -34,7 +36,7 @@ function readUrlState() {
   return {
     profileId: params.get("profile") ?? DEFAULT_PROFILE_ID,
     name: params.get("name") ?? "draft",
-    policy: (params.get("policy") as ContrastPolicy | null) ?? "wcag-strict",
+    policy: isContrastPolicy(params.get("policy")) ? (params.get("policy") as ContrastPolicy) : "wcag-strict",
     pin: parsePin(params.get("pin")),
     // Not one of the example intents: seeding on top of one opens the tool
     // onto a wall of collisions with itself, which reads as the tool being
@@ -69,7 +71,10 @@ export function App() {
   const [showScale, setShowScale] = useState(false);
   const [pin, setPin] = useState<PinSpec | undefined>(initial.pin);
   const [hexDraft, setHexDraft] = useState(initial.seedHex);
-  const [cvdView, setCvdView] = useState<CvdView>(() => readStored<CvdView>("cf-cvd", "none"));
+  const [cvdView, setCvdView] = useState<CvdView>(() => {
+    const stored = readStored<string>("cf-cvd", "none");
+    return isCvdView(stored) ? stored : "none";
+  });
   const [theme, setTheme] = useState<ThemeChoice>(() => readStored<ThemeChoice>("cf-theme", "system"));
   const [foregroundOverrides, setForegroundOverrides] = useState<Record<ModeKey, Record<string, string>>>({
     light: {},
@@ -122,13 +127,13 @@ export function App() {
 
   const pinSuggestion = useMemo(() => suggestPin(profile, seedHex), [profile, seedHex]);
 
+
   // The draft participates in the family checks as a live row, so a change to
   // the seed is reflected in the separation table immediately.
-  const familyWithDraft = useMemo(() => {
-    const asIntent = draftAsIntent(profile, draft);
-    const withoutStale = family.filter((f) => f.name !== asIntent.name);
-    return [...withoutStale, asIntent];
-  }, [profile, draft, family]);
+  const familyWithDraft = useMemo<SeededIntent[]>(
+    () => [...family, draftAsIntent(profile, draft)],
+    [profile, draft, family],
+  );
 
   const findings = useMemo(
     () => auditDraft(profile, draft, familyWithDraft),
@@ -148,8 +153,13 @@ export function App() {
 
   const snapshotDraft = () => {
     const asIntent = draftAsIntent(profile, draft);
+    // Deduped against the draft's own name as well as the family's. Without
+    // that, freezing an unnamed draft produced a second row called "draft"
+    // sitting beside the live one, which is the same collision this used to
+    // resolve by hiding the row.
+    const taken = (name: string) => name === draft.name || family.some((f) => f.name === name);
     let candidate = asIntent.name;
-    for (let n = 2; family.some((f) => f.name === candidate); n++) candidate = `${asIntent.name}-${n}`;
+    for (let n = 2; taken(candidate); n++) candidate = `${asIntent.name}-${n}`;
     setFamily([...family, { ...asIntent, name: candidate }]);
   };
 
@@ -340,9 +350,8 @@ export function App() {
             <FamilyTable
               profile={profile}
               family={familyWithDraft}
-              draftName={draft.name}
               cvdView={cvdView}
-              onChange={(next) => setFamily(next.filter((f) => f.name !== draft.name))}
+              onChange={(next) => setFamily(next.filter((f) => !f.isDraft))}
               onReset={() => setFamily(profile.family)}
               onSnapshot={snapshotDraft}
             />

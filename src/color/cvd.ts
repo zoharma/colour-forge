@@ -14,6 +14,14 @@ export type CvdType = (typeof CVD_TYPES)[number];
 
 export type CvdView = CvdType | "none" | "achromatopsia";
 
+/** Every view, as a list rather than only as a type. A runtime guard needs
+ *  something it can actually check membership against. */
+export const CVD_VIEWS: readonly CvdView[] = [
+  "none",
+  ...CVD_TYPES,
+  "achromatopsia",
+] as const;
+
 export const CVD_LABELS: Record<CvdView, string> = {
   none: "Normal",
   protanopia: "Protanopia",
@@ -40,6 +48,16 @@ const MATRICES: Record<CvdType, number[][]> = {
   ],
 };
 
+/** Whether a value off the wire is really one of ours. Anything read from
+ *  localStorage or a URL is a string someone else last wrote.
+ *
+ *  Membership of the list, not `in` on the label object: `in` walks the
+ *  prototype chain, so "constructor" and "toString" passed as valid views and
+ *  went on to index the matrix table with a function. */
+export function isCvdView(value: unknown): value is CvdView {
+  return typeof value === "string" && (CVD_VIEWS as readonly string[]).includes(value);
+}
+
 export function simulateCvdHex(hex: string, view: CvdView): string {
   if (view === "none") return hex;
 
@@ -51,7 +69,16 @@ export function simulateCvdHex(hex: string, view: CvdView): string {
     return rgb255ToHex(linearToRgb255({ r: y, g: y, b: y }));
   }
 
-  const m = MATRICES[view];
+  // Total by construction. The view can arrive from storage or a URL, and an
+  // unknown one used to index MATRICES and throw during the first render — a
+  // blank page that survived reloads, because the bad value was still in
+  // localStorage on the way back.
+  //
+  // Own properties only. A plain truthiness check is not enough: MATRICES
+  // inherits from Object, so MATRICES["constructor"] is a function, passes
+  // `if (m)`, and throws one line later on the row destructure.
+  const m = Object.hasOwn(MATRICES, view) ? MATRICES[view as CvdType] : undefined;
+  if (!m) return hex;
   const row = (i: number) => {
     const [a, b, c] = m[i] as [number, number, number];
     return clamp01(a * lin.r + b * lin.g + c * lin.b);

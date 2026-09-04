@@ -2,22 +2,101 @@ import { useEffect, useRef, useState } from "react";
 
 import { simulateCvdHex, type CvdView } from "../color/cvd";
 import { isValidHex, normaliseHex } from "../color/srgb";
+import { WCAG_CRITERION, meetsWcag, wcagRatioHex } from "../color/wcag";
 import type { ModeKey, Profile, SeededIntent } from "../profiles/types";
+
 
 interface Props {
   profile: Profile;
   family: SeededIntent[];
-  draftName: string;
   cvdView: CvdView;
   onChange: (family: SeededIntent[]) => void;
   onReset: () => void;
   onSnapshot: () => void;
 }
 
+/** One editable hex.
+ *
+ *  Uncontrolled-with-a-leash, and both halves are load-bearing. It cannot be
+ *  fully controlled because a half-typed hex is not a valid colour and would
+ *  be rejected keystroke by keystroke. It cannot be fully uncontrolled either,
+ *  because a row can now be rewritten underneath it — changing a placement
+ *  re-derives every value in the row — and a `defaultValue` would go on
+ *  showing the colour that used to be there while the swatch beside it showed
+ *  the new one. So it tracks the value it is displaying, except while someone
+ *  is typing into it. */
+function HexCell({
+  value,
+  label,
+  onCommit,
+}: {
+  value: string;
+  label: string;
+  onCommit: (value: string) => void;
+}) {
+  const [text, setText] = useState(value);
+  const editing = useRef(false);
+
+  useEffect(() => {
+    if (!editing.current) setText(value);
+  }, [value]);
+
+  return (
+    <input
+      className="hexfield"
+      type="text"
+      value={text}
+      placeholder="—"
+      aria-label={label}
+      onFocus={() => {
+        editing.current = true;
+      }}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={(e) => {
+        editing.current = false;
+        const next = e.target.value.trim();
+        // Anything that is not a colour goes back to what was there, rather
+        // than sitting in the field looking like it took.
+        if (next !== "" && !isValidHex(next)) {
+          setText(value);
+          return;
+        }
+        onCommit(next);
+      }}
+    />
+  );
+}
+
 /** The intents a new colour has to live alongside. Editable, because the
  *  shipped values are a starting point and the interesting question is often
  *  "what if we also changed that one". */
-export function FamilyTable({ profile, family, draftName, cvdView, onChange, onReset, onSnapshot }: Props) {
+export function FamilyTable({
+  profile,
+  family,
+  cvdView,
+  onChange,
+  onReset,
+  onSnapshot,
+}: Props) {
+  // Nothing to place if the profile has no role whose job is to be the
+  // colour, so the column does not appear at all rather than sitting there
+  // inert.
+  const filledRole = profile.roles.find((r) => r.wantsSaturation);
+
+  /** Which modes of a row have a fill too bright to define its own edge.
+   *
+   *  The draft gets this as a finding; a family row has to get it here, or a
+   *  value the tool generated would carry a 1.4.11 obligation with nothing
+   *  anywhere saying so. */
+  const needsBorder = (intent: SeededIntent): ModeKey[] => {
+    if (!filledRole) return [];
+    return (["light", "dark"] as ModeKey[]).filter((mode) => {
+      const hex = intent[mode][filledRole.key];
+      if (!hex) return false;
+      return !meetsWcag(wcagRatioHex(hex, profile.modes[mode].background), filledRole.requirement);
+    });
+  };
+
   const roles = profile.separationRoles
     .map((key) => profile.roles.find((r) => r.key === key))
     .filter((r): r is NonNullable<typeof r> => Boolean(r));
@@ -54,7 +133,7 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
 
   // The live draft is pinned last, since it is re-derived on every keystroke
   // rather than being a row anyone placed.
-  const movable = family.filter((f) => f.name !== draftName).length;
+  const movable = family.filter((f) => !f.isDraft).length;
 
   const move = (from: number, to: number) => {
     if (from === to || from < 0 || to < 0 || from >= movable || to >= movable) return;
@@ -116,7 +195,7 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
           </thead>
           <tbody>
             {family.map((intent, index) => {
-              const isDraft = intent.name === draftName;
+              const isDraft = intent.isDraft === true;
               return (
                 <tr
                   key={index}
@@ -176,6 +255,15 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
                           onChange={(e) => update(index, (i) => ({ ...i, name: e.target.value }))}
                         />
                       )}
+                      {needsBorder(intent).map((mode) => (
+                        <span
+                          key={mode}
+                          className="pill warn"
+                          title={`In ${mode} mode this ${filledRole?.label.toLowerCase() ?? "fill"} is under ${filledRole ? WCAG_CRITERION[filledRole.requirement] : "3:1"} against the page, so it cannot define its own edge. 1.4.11 asks for a perceivable boundary rather than a contrasting fill, so give it a border and it conforms.`}
+                        >
+                          {mode.slice(0, 1)} · needs a border
+                        </span>
+                      ))}
                     </span>
                   </td>
 
@@ -192,13 +280,10 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
                           {isDraft ? (
                             <span className="readout">{hex || "—"}</span>
                           ) : (
-                            <input
-                              className="hexfield"
-                              type="text"
-                              defaultValue={hex}
-                              placeholder="—"
-                              aria-label={`${intent.name} ${role.label} in ${mode} mode`}
-                              onBlur={(e) => setHex(index, mode, role.key, e.target.value.trim())}
+                            <HexCell
+                              value={hex}
+                              label={`${intent.name} ${role.label} in ${mode} mode`}
+                              onCommit={(v) => setHex(index, mode, role.key, v)}
                             />
                           )}
                         </td>

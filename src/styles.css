@@ -202,6 +202,13 @@ header.top .segmented button {
   max-width: 100%;
 }
 
+/* The same control inside the family table, where the reason for clipping
+   does not apply: that table already scrolls sideways, so a label cut off
+   mid-word buys nothing and just makes two placements look alike. */
+.placement-select {
+  width: auto;
+}
+
 .segmented {
   display: flex;
   /* The policy group's three long labels do not fit across a narrow screen,
@@ -608,7 +615,10 @@ th {
 }
 
 .hexfield {
-  width: 8.5ch;
+  /* Seven characters plus the padding and border this box-sizing counts in.
+     8.5ch clipped the last digit, which turned every value in the table into
+     a plausible-looking wrong colour. */
+  width: 10ch;
   font-family: var(--font-mono);
   font-size: 0.75rem;
   padding: 3px 5px;

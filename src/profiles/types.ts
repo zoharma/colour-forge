@@ -27,6 +27,12 @@ export interface RoleDef {
   cssVar: string;
   /** CSS custom property for the paired foreground, when needsForeground. */
   foregroundCssVar?: string;
+  /** True for a role whose job is to *be* the colour: a filled action, a
+   *  solid badge. Only these follow the hue's cusp when that placement is
+   *  switched on. Text never can, because a bright yellow is unreadable as
+   *  text at any hue, and a wash never should, because its whole point is to
+   *  stay quiet. */
+  wantsSaturation?: boolean;
   /** How far this role must stay from the same role on other intents, on the
    *  0–441 RGB scale under simulated colour-vision deficiency.
    *
@@ -59,12 +65,30 @@ export interface ProfileMode {
    *  one. One shared curve cannot fit both; two can. */
   targetLc: number[];
   chromaMultiplier: number[];
+  /** Fraction of the sRGB gamut hull a step may spend, or omitted for all of
+   *  it.
+   *
+   *  A colour clamped flat against the hull is the most saturated thing the
+   *  display can produce at that lightness. On a dark ground that is where it
+   *  stops reading as a colour and starts glaring. Holding back a fixed
+   *  fraction pulls in exactly the hues that were pinned there and leaves the
+   *  ones that never got near it alone, so no hue has to be named. */
+  chromaHeadroom?: number;
   /** Selector the exported CSS block is written under. */
   selector: string;
 }
 
 export interface SeededIntent {
   name: string;
+  /** Marks the one row that is the colour currently being designed, rather
+   *  than a stored member of the family.
+   *
+   *  Profiles never set it: it is stamped by the app on the row it appends. It
+   *  exists because the draft used to be recognised by having the same name as
+   *  the draft, which made a user-editable display name load-bearing — renaming
+   *  a row to "draft" deleted it, and freezing an unnamed draft produced a row
+   *  that was hidden and then dropped. */
+  isDraft?: boolean;
   /** Role key → hex, per mode. Sparse: a role with no shipped value yet is
    *  simply absent rather than guessed. */
   light: Record<string, string>;
