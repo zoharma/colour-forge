@@ -34,13 +34,25 @@ function blockFor(profile: Profile, draft: Draft, mode: ModeKey, options: Export
     const step = draft[mode].roles[role.key];
     if (!step) continue;
 
-    // A deliberate miss is annotated whether or not measurements were asked
-    // for: it is a decision someone made, and it has to survive the paste
-    // into a token file rather than living only in this session's UI.
+    // A miss is annotated whether or not measurements were asked for: it is a
+    // decision someone made, and it has to survive the paste into a token file
+    // rather than living only in this session's UI.
+    //
+    // With the reason it actually had. "Kept for hue" is true of the policy
+    // exemption and false of the other two: a step that cannot reach the
+    // criterion at any lightness traded nothing away, and a pinned one is a
+    // colour a human fixed by hand. Baking the wrong reason into a token file
+    // is worse than baking in none, because the next reader believes it.
+    const reason =
+      step.verdict === "pinned"
+        ? "this exact colour was pinned to this role"
+        : step.verdict === "below-both"
+          ? "no lightness of this hue reaches it"
+          : "kept for hue";
     const belowAa =
       step.conformance === "meets"
         ? ""
-        : `  /* Below ${WCAG_CRITERION[step.requirement]} at ${step.wcagRatio.toFixed(2)}:1 — kept for hue.\n     Legal for ${permittedUsage(step.wcagRatio)}. Needs a non-colour cue. */\n`;
+        : `  /* Below ${WCAG_CRITERION[step.requirement]} at ${step.wcagRatio.toFixed(2)}:1 — ${reason}.\n     Legal for ${permittedUsage(step.wcagRatio)}. Needs a non-colour cue. */\n`;
     const comment = options.includeMeasurements
       ? `  /* APCA Lc ${step.lc.toFixed(0)}, WCAG ${step.wcagRatio.toFixed(2)}:1 vs background */\n`
       : "";

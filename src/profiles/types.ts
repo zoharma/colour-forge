@@ -80,6 +80,15 @@ export interface ProfileMode {
 
 export interface SeededIntent {
   name: string;
+  /** Marks the one row that is the colour currently being designed, rather
+   *  than a stored member of the family.
+   *
+   *  Profiles never set it: it is stamped by the app on the row it appends. It
+   *  exists because the draft used to be recognised by having the same name as
+   *  the draft, which made a user-editable display name load-bearing — renaming
+   *  a row to "draft" deleted it, and freezing an unnamed draft produced a row
+   *  that was hidden and then dropped. */
+  isDraft?: boolean;
   /** Role key → hex, per mode. Sparse: a role with no shipped value yet is
    *  simply absent rather than guessed. */
   light: Record<string, string>;

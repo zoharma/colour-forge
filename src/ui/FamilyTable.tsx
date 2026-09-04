@@ -5,10 +5,10 @@ import { isValidHex, normaliseHex } from "../color/srgb";
 import { WCAG_CRITERION, meetsWcag, wcagRatioHex } from "../color/wcag";
 import type { ModeKey, Profile, SeededIntent } from "../profiles/types";
 
+
 interface Props {
   profile: Profile;
   family: SeededIntent[];
-  draftName: string;
   cvdView: CvdView;
   onChange: (family: SeededIntent[]) => void;
   onReset: () => void;
@@ -73,7 +73,6 @@ function HexCell({
 export function FamilyTable({
   profile,
   family,
-  draftName,
   cvdView,
   onChange,
   onReset,
@@ -134,7 +133,7 @@ export function FamilyTable({
 
   // The live draft is pinned last, since it is re-derived on every keystroke
   // rather than being a row anyone placed.
-  const movable = family.filter((f) => f.name !== draftName).length;
+  const movable = family.filter((f) => !f.isDraft).length;
 
   const move = (from: number, to: number) => {
     if (from === to || from < 0 || to < 0 || from >= movable || to >= movable) return;
@@ -196,7 +195,7 @@ export function FamilyTable({
           </thead>
           <tbody>
             {family.map((intent, index) => {
-              const isDraft = intent.name === draftName;
+              const isDraft = intent.isDraft === true;
               return (
                 <tr
                   key={index}

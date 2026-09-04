@@ -63,6 +63,14 @@ export const POLICY_DESCRIPTIONS: Record<ContrastPolicy, string> = {
 /** How the role's requirement is read under a policy. Only the easing-off
  *  path consults this — a step that was never in conflict is unaffected, so
  *  turning the policy down does not quietly degrade a palette that was fine. */
+/** As with the CVD view: a policy arriving from a URL is a string a stranger
+ *  wrote. Unvalidated it fell through to the relaxed branch, which today is
+ *  unobservable because the ordered ramp makes the exemption unreachable, and
+ *  would become a silent palette-wide downgrade the moment that changed. */
+export function isContrastPolicy(value: unknown): value is ContrastPolicy {
+  return value === "wcag-strict" || value === "wcag-relaxed" || value === "hue-first";
+}
+
 export function effectiveRequirement(
   requirement: WcagRequirement,
   policy: ContrastPolicy,

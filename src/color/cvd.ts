@@ -40,6 +40,12 @@ const MATRICES: Record<CvdType, number[][]> = {
   ],
 };
 
+/** Whether a value off the wire is really one of ours. Anything read from
+ *  localStorage or a URL is a string someone else last wrote. */
+export function isCvdView(value: unknown): value is CvdView {
+  return typeof value === "string" && value in CVD_LABELS;
+}
+
 export function simulateCvdHex(hex: string, view: CvdView): string {
   if (view === "none") return hex;
 
@@ -51,7 +57,12 @@ export function simulateCvdHex(hex: string, view: CvdView): string {
     return rgb255ToHex(linearToRgb255({ r: y, g: y, b: y }));
   }
 
+  // Total by construction. The view can arrive from storage or a URL, and an
+  // unknown one used to index MATRICES with undefined and throw during the
+  // first render — a blank page that survived reloads, because the bad value
+  // was still in localStorage on the way back.
   const m = MATRICES[view];
+  if (!m) return hex;
   const row = (i: number) => {
     const [a, b, c] = m[i] as [number, number, number];
     return clamp01(a * lin.r + b * lin.g + c * lin.b);

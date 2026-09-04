@@ -518,7 +518,10 @@ function visibilityFindings(profile: Profile, draft: Draft): Finding[] {
 /* ---------------------------------------------------------------------- */
 
 export function auditDraft(profile: Profile, draft: Draft, family: SeededIntent[]): Finding[] {
-  const siblings = family.filter((f) => f.name !== draft.name);
+  // By the marker, not the name: two rows can legitimately share a name now
+  // that the display name is only text, and a sibling filtered out by accident
+  // would silently drop it from every separation check.
+  const siblings = family.filter((f) => !f.isDraft && f.name !== draft.name);
   return [
     ...contrastFindings(profile, draft),
     ...cvdFindings(profile, family, draft.name),
