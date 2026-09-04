@@ -87,40 +87,66 @@ the exported CSS so it survives the paste into a token file.
 
 A yellow fill placed at the step a profile names for it is not yellow. It is
 brown. That is not a bug in the solver: the step is the right *contrast*
-position, and yellow simply has no chroma left down there.
+position, and yellow has no chroma left down there.
 
 The reason is the gamut cusp: the lightness at which a hue holds its most
-chroma. Red's sits around L 0.58, yellow's around L 0.88. One fixed step
-cannot serve both, and the fill roles are the ones where it matters, because
-their whole job is to *be* the colour.
+chroma. Red's sits around L 0.58, yellow's around L 0.88. One fixed step cannot
+serve both, and the filled roles are where it matters, because their whole job
+is to *be* the colour. Measured across Material's 19 core hues, the declared
+step lands at 3.9-4.4:1 in light mode for a role that requires 3:1, so nearly
+every hue was paying chroma for contrast nothing asked for.
 
-So a filled role can take either placement:
+So it is solved rather than offered as a choice. The fill takes its most
+chromatic step, under constraints that between them are the whole rule.
 
-| Placement | What it does |
-| --- | --- |
-| **Fixed step** (default) | The step the profile names. Always clears the role's own requirement. Muddy for any hue whose cusp is light: yellow, lime, teal, the greens. |
-| **Follow the hue** | The step nearest this hue's own peak, up to three away. Hues that already peak mid-scale (red, pink, purple) do not move at all. |
+**It only ever moves lighter.** Red and pink already sit at their peak. Indigo
+and deep purple peak *dark*, so an unconstrained search sends their fill to a
+near-navy at Lc 85 while every sibling sits at Lc 66: more chroma, but no
+longer the same family. Refusing downward moves rules that out without naming
+a single hue. Near-neutrals do not move at all, because ranking them on
+thousandths of chroma is noise, not a colour decision.
 
-**It is a per-intent setting, not a palette-wide one.** That is not a hedge:
-Diamond's own shipped tokens place `warning` at Lc 47 and `highlight` at Lc 16
-while every other solid sits between Lc 62 and 87. They broke their own rule
-for exactly the two light-peaked hues. Placement is an editorial call about one
-colour, so the family table carries the control on every row the tool
-generated, and a bright orange can sit next to a muted teal in one set.
+**Dark mode keeps its requirement; light mode may spend it.** This reads as an
+asymmetry and is not. On a dark page every bright form already measures 9-14:1,
+so there is nothing to trade. On a light page a genuinely yellow yellow is
+1.3:1 and the conflict is real, so the colour wins and the cost is reported.
 
-Rows marked **shipped** have no control. Those values are real tokens read out
-of a design system rather than something this tool produced, and re-deriving
-them would replace measured values with a guess at how they might have been
-made.
+**But not past the point where a fill stops being one.** A seed already sitting
+on its hue's cusp has a ramp that peaks at the palest end, so chasing that peak
+walks the fill off the page: `#e3e60f` reached 1.19:1, where the border is not
+supplementing the fill, it is the entire component. A floor at 1.3:1 rules that
+out while leaving every hue the behaviour exists for untouched.
 
-What following the hue costs is reported rather than hidden. A brighter fill
-can drop under 3:1 against the page, at which point it can no longer define
-its own edge. That is flagged in the audit for the draft, on the row for
-everything else, and annotated in the exported CSS. The flag says what it is:
-**1.4.11 asks for a perceivable boundary, not a contrasting fill.** Give it a
-border and it conforms; without one it does not. Which hues this catches is not
-a guess either. Orange at its peak still clears 3:1 and is not flagged, while
-a light green at its peak does not and is.
+Across the 19 hues, 14 move in light and 13 in dark, and exactly six (cyan,
+teal, green, light green, lime, yellow) end up under 3:1 in light mode. Those
+carry a border obligation, flagged in the audit, on the family row, and in the
+exported CSS. The flag says what it is: **1.4.11 asks for a perceivable
+boundary, not a contrasting fill.** With a border it conforms; without one it
+does not. Which hues this catches is not a guess either. Orange at its peak
+still clears 3:1 and is not flagged, while a light green does not and is.
+
+### Dark steps are held back from the gamut hull
+
+A colour clamped flat against the sRGB hull is the most saturated thing the
+display can produce at that lightness. On a dark ground that is where it stops
+reading as a colour and starts glaring, which is what the eye reports as a red
+that vibrates.
+
+It was measurably happening: eight of the dark fills sat at or past the hull,
+red among them at 101% with the second highest chroma in the palette. The dark
+chroma curve asks for 1.2x the seed's chroma at exactly the step the dark fill
+sits on, and for a saturated seed that is more than sRGB holds, so it clamped.
+
+A mode can therefore declare how much of the hull its steps may spend, and both
+profiles cap dark at 90%. Expressed as a fraction of what is physically
+available rather than as a chroma ceiling, which is what makes it
+self-targeting: it pulls in exactly the hues that were pinned to the hull and
+leaves alone the ones that never got near it (green and indigo at 76%, the
+neutrals at 31%). No hue is named. Thirteen of the dark fills change, peak hull
+use drops from 108% to 90%, and nothing loses conformance.
+
+Light mode is left uncapped. The same measurement shows it hull-hugging too,
+but the glare is a dark-ground effect.
 
 ## Pinning the seed to a role
 

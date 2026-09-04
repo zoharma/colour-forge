@@ -280,6 +280,21 @@ export type RoleSet = Record<string, SolvedStep>;
  *  one. */
 const NEUTRAL_CHROMA_FLOOR = 0.03;
 
+/** The least contrast a fill may have against the page and still be a fill.
+ *
+ *  Light mode lets a fill go under its requirement to keep the hue, and a
+ *  border makes that conformant. But the trade only makes sense while the fill
+ *  is still doing something: at 1.19:1 the border is not supplementing the
+ *  fill, it is the entire component, and the "fill" is a wash the eye reads as
+ *  the page. Seeds already sitting on their hue's cusp are what reach that —
+ *  their ramp peaks at the palest end, so chasing the peak walks the fill off
+ *  the page.
+ *
+ *  Set just under the six hues this behaviour exists for (yellow 1.33, lime
+ *  and teal 1.35, light green 1.36, green 1.76, cyan 1.77), so it rules out
+ *  the degenerate case without touching any of them. */
+const MIN_FILL_RATIO = 1.3;
+
 function fillIndex(role: RoleDef, mode: ModeKey, scale: SolvedStep[], pin?: PinSpec): number {
   const declared = role.index[mode];
   const base = scale[declared];
@@ -301,8 +316,10 @@ function fillIndex(role: RoleDef, mode: ModeKey, scale: SolvedStep[], pin?: PinS
     // toward it is taking the role somewhere its siblings are not.
     if (step.L <= base.L) continue;
     // On a dark page brightness is free, so there is no case for buying it
-    // with conformance.
+    // with conformance. On a light page the trade is allowed, but not past the
+    // point where what it buys has stopped being a fill.
     if (mode === "dark" && !meetsWcag(step.wcagRatio, role.requirement)) continue;
+    if (mode === "light" && step.wcagRatio < MIN_FILL_RATIO) continue;
     best = i;
     bestChroma = step.chroma;
   }

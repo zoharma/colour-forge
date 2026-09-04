@@ -104,6 +104,35 @@ describe("the two constraints that make the rule safe", () => {
     }
   });
 
+  it("never walks a light fill off the page chasing the peak", () => {
+    // A seed already sitting on its hue's cusp has a ramp that peaks at the
+    // palest end, so an unfloored search hands back a fill at 1.19:1 that the
+    // eye reads as the page. The border is meant to supplement a fill, not be
+    // the whole component.
+    const role = filledRole(genericProfile);
+    for (const seed of ["#e3e60f", "#ffeb3b", "#cddc39", "#f5f7c0", "#eaffea", "#fffbe0"]) {
+      const step = buildDraft(genericProfile, "x", seed).light.roles[role.key]!;
+      expect(step.wcagRatio, `${seed} -> ${step.hex}`).toBeGreaterThanOrEqual(1.3);
+    }
+  });
+
+  it("leaves the hues that already sit just above the floor exactly where they were", () => {
+    // The floor exists for the degenerate case, so it must not quietly pull in
+    // the six hues this whole behaviour was built for.
+    const role = filledRole(genericProfile);
+    const expected: Record<string, string> = {
+      "#ffeb3b": "#f1de30", // yellow  1.33:1
+      "#cddc39": "#d5e531", // lime    1.35:1
+      "#009688": "#65f0dd", // teal    1.35:1
+      "#8bc34a": "#aaed5d", // light green 1.36:1
+      "#4caf50": "#62d867", // green   1.76:1
+      "#00bcd4": "#1fd2ec", // cyan    1.77:1
+    };
+    for (const [seed, hex] of Object.entries(expected)) {
+      expect(buildDraft(genericProfile, "x", seed).light.roles[role.key]!.hex, seed).toBe(hex);
+    }
+  });
+
   it("never trades to a less saturated step, at any hue", () => {
     for (const profile of PROFILES) {
       const role = filledRole(profile);
