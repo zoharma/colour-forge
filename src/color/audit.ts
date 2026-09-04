@@ -68,8 +68,13 @@ function contrastFindings(profile: Profile, draft: Draft): Finding[] {
       // is: 1.4.11 wants a perceivable boundary, not necessarily a
       // high-contrast fill, so a border satisfies it. That is a suggestion
       // for a person to take or leave, not a rule.
+      // Only when the role really moved. A fill sitting on its declared step
+      // and failing for some other reason — a pinned colour, most obviously —
+      // is not "at its brightest here", and the explanation that follows would
+      // be a fabricated story about a hue that never peaked.
       if (
         role.wantsSaturation &&
+        step.stepIndex !== role.index[mode] &&
         role.requirement !== "none" &&
         !meetsWcag(step.wcagRatio, role.requirement)
       ) {
@@ -228,8 +233,14 @@ export function separationRows(profile: Profile, family: SeededIntent[]): Separa
   return rows;
 }
 
-function cvdFindings(profile: Profile, family: SeededIntent[], draftName: string): Finding[] {
+function cvdFindings(profile: Profile, family: SeededIntent[]): Finding[] {
   const findings: Finding[] = [];
+  // The row the app marked, not whatever is called the same as the draft. A
+  // family row a user renames to the draft's name is a different colour, and
+  // attributing its collisions to the draft reports a problem the draft does
+  // not have.
+  const draftName = family.find((f) => f.isDraft)?.name;
+  if (draftName === undefined) return findings;
 
   for (const row of separationRows(profile, family)) {
     const role = profile.roles.find((r) => r.key === row.role);
@@ -521,10 +532,10 @@ export function auditDraft(profile: Profile, draft: Draft, family: SeededIntent[
   // By the marker, not the name: two rows can legitimately share a name now
   // that the display name is only text, and a sibling filtered out by accident
   // would silently drop it from every separation check.
-  const siblings = family.filter((f) => !f.isDraft && f.name !== draft.name);
+  const siblings = family.filter((f) => !f.isDraft);
   return [
     ...contrastFindings(profile, draft),
-    ...cvdFindings(profile, family, draft.name),
+    ...cvdFindings(profile, family),
     ...familyFindings(profile, draft, siblings),
     ...visibilityFindings(profile, draft),
     ...roleCollisionFindings(profile, draft),
@@ -544,7 +555,12 @@ export function draftAsIntent(profile: Profile, draft: Draft): SeededIntent {
     return out;
   };
   return {
+    // Stamped here rather than by the caller. This row *is* the draft by
+    // definition, and a caller that forgot to mark it got silently empty CVD
+    // findings — a worse failure than the name matching this replaced, because
+    // nothing reports it.
     name: draft.name,
+    isDraft: true,
     light: forMode("light"),
     dark: forMode("dark"),
   };

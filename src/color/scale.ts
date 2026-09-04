@@ -106,7 +106,16 @@ function enforceRampSpacing(
     const violates = backgroundIsLight ? current.L > limit : current.L < limit;
     if (!violates) continue;
 
-    out[i] = stepAtLightness(ctx, Math.min(1, Math.max(0, limit)), current.targetLc, "ramp-spaced");
+    // Keep the verdict that explains the colour, not just the one that
+    // explains the position. A step can be both hue-protected and spaced, and
+    // overwriting the first discards its audit note and its badge. Worse, a
+    // spaced `below-both` step used to export as "kept for hue" — the exact
+    // contradiction the export's reason selection exists to prevent, since
+    // nothing was traded away for a hue that cannot reach the criterion at any
+    // lightness. `ramp-spaced` only wins over `apca-met`, which had nothing
+    // left to say once the step moved.
+    const keep = current.verdict === "apca-met" ? "ramp-spaced" : current.verdict;
+    out[i] = stepAtLightness(ctx, Math.min(1, Math.max(0, limit)), current.targetLc, keep);
   }
 
   return out;

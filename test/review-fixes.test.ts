@@ -7,6 +7,7 @@ import { buildDraft } from "../src/color/scale";
 import { isContrastPolicy } from "../src/color/solver";
 import { diamondProfile } from "../src/profiles/diamond";
 import { genericProfile } from "../src/profiles/generic";
+import { MATERIAL_500 } from "../src/profiles/material";
 import type { SeededIntent } from "../src/profiles/types";
 
 /** Values that reach the app from localStorage or a URL are strings a stranger
@@ -16,6 +17,18 @@ describe("values arriving from outside", () => {
     for (const view of Object.keys(CVD_LABELS)) expect(isCvdView(view), view).toBe(true);
     for (const junk of ["", "garbage", "None", "protanopia ", null, undefined, 7, {}])
       expect(isCvdView(junk), String(junk)).toBe(false);
+  });
+
+  it("rejects inherited property names", () => {
+    // The first version of this guard used `in`, which walks the prototype
+    // chain, so "constructor" passed and then indexed the matrix table with a
+    // function — the same blank page the guard was added to prevent, reached
+    // by a different route.
+    for (const key of ["constructor", "toString", "hasOwnProperty", "valueOf", "__proto__"]) {
+      expect(isCvdView(key), key).toBe(false);
+      expect(() => simulateCvdHex("#ff0000", key as CvdView), key).not.toThrow();
+      expect(simulateCvdHex("#ff0000", key as CvdView), key).toBe("#ff0000");
+    }
   });
 
   it("never throws simulating an unknown view", () => {
@@ -127,5 +140,73 @@ describe("the export states the reason a step actually had", () => {
 
     // The sweep has to have found the states, or it proves nothing.
     expect(checked, "no non-conforming steps reached").toBeGreaterThan(10);
+  });
+});
+
+describe("a spaced step keeps the verdict that explains its colour", () => {
+  it("never reports a step no lightness can satisfy as one kept for hue", () => {
+    // Spacing used to overwrite every verdict with "ramp-spaced", so a
+    // below-both step exported as "kept for hue" — nothing was traded away
+    // for a hue that cannot reach the criterion anywhere.
+    for (const profile of [genericProfile, diamondProfile]) {
+      for (const hex of ["#ffeb3b", "#cddc39", "#00bcd4", "#f44336"]) {
+        for (const mode of ["light", "dark"] as const) {
+          const draft = buildDraft(profile, "x", hex);
+          for (const step of draft[mode].scale) {
+            if (step.verdict !== "ramp-spaced") continue;
+            // The one verdict spacing is allowed to replace had nothing else
+            // to say, so a spaced step must never be hiding a real failure.
+            expect(step.conformance, `${profile.id}/${mode}/${step.hex}`).toBe("meets");
+          }
+        }
+      }
+    }
+  });
+
+  it("keeps hue-protected and wcag-bound notes through spacing", () => {
+    // These carry audit notes and a badge tone; overwriting them made both
+    // disappear from steps that had genuinely eased off or been held out.
+    const verdicts = new Set<string>();
+    for (const profile of [genericProfile, diamondProfile])
+      for (const { hex } of MATERIAL_500)
+        for (const mode of ["light", "dark"] as const)
+          for (const step of buildDraft(profile, "x", hex)[mode].scale) verdicts.add(step.verdict);
+
+    expect(verdicts.has("hue-protected")).toBe(true);
+    expect(verdicts.has("wcag-bound")).toBe(true);
+  });
+});
+
+describe("the fill-placement warning", () => {
+  it("is not raised for a fill that never moved", () => {
+    // A pinned fill sits on its declared step. It used to collect "Fill is at
+    // its brightest here" plus an invented explanation about a hue peaking in
+    // lightness, on top of the correct pinned blocker.
+    const role = genericProfile.roles.find((r) => r.wantsSaturation)!;
+    const draft = buildDraft(genericProfile, "x", "#ffe98a", "wcag-strict", {
+      mode: "light",
+      roleKey: role.key,
+    });
+    const step = draft.light.roles[role.key]!;
+    expect(step.stepIndex, "expected the pin to hold the declared step").toBe(role.index.light);
+
+    const findings = auditDraft(genericProfile, draft, [draftAsIntent(genericProfile, draft)]);
+    expect(findings.some((f) => f.id === `fill-placement-light-${role.key}`)).toBe(false);
+  });
+});
+
+describe("CVD findings follow the marked draft", () => {
+  it("does not blame the draft for a same-named family row's collisions", () => {
+    const draft = buildDraft(diamondProfile, "error", "#2a00ff");
+    const asIntent = draftAsIntent(diamondProfile, draft);
+    const findings = auditDraft(diamondProfile, draft, [...diamondProfile.family, asIntent]);
+
+    // Every CVD finding must name a pair the draft is actually in.
+    for (const f of findings.filter((x) => x.category === "cvd")) {
+      const role = diamondProfile.roles.find((r) => r.key === f.role);
+      const mine = asIntent[f.mode!][f.role!];
+      expect(mine, `${f.id} names a role the draft has no colour for`).toBeTruthy();
+      expect(role, f.id).toBeDefined();
+    }
   });
 });

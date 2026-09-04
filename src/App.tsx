@@ -131,7 +131,7 @@ export function App() {
   // The draft participates in the family checks as a live row, so a change to
   // the seed is reflected in the separation table immediately.
   const familyWithDraft = useMemo<SeededIntent[]>(
-    () => [...family, { ...draftAsIntent(profile, draft), isDraft: true }],
+    () => [...family, draftAsIntent(profile, draft)],
     [profile, draft, family],
   );
 

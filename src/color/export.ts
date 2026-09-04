@@ -43,16 +43,22 @@ function blockFor(profile: Profile, draft: Draft, mode: ModeKey, options: Export
     // criterion at any lightness traded nothing away, and a pinned one is a
     // colour a human fixed by hand. Baking the wrong reason into a token file
     // is worse than baking in none, because the next reader believes it.
+    // Against the role's requirement, matching the `moved` note below and the
+    // JSON. A fill that slid onto another role's step carries the step's
+    // requirement, which can be a different criterion from the one this token
+    // is actually held to, and the two would then contradict each other in one
+    // declaration.
+    const requirement = role.requirement;
+    const meetsRequirement = meetsWcag(step.wcagRatio, requirement);
     const reason =
       step.verdict === "pinned"
         ? "this exact colour was pinned to this role"
         : step.verdict === "below-both"
           ? "no lightness of this hue reaches it"
           : "kept for hue";
-    const belowAa =
-      step.conformance === "meets"
-        ? ""
-        : `  /* Below ${WCAG_CRITERION[step.requirement]} at ${step.wcagRatio.toFixed(2)}:1 — ${reason}.\n     Legal for ${permittedUsage(step.wcagRatio)}. Needs a non-colour cue. */\n`;
+    const belowAa = meetsRequirement
+      ? ""
+      : `  /* Below ${WCAG_CRITERION[requirement]} at ${step.wcagRatio.toFixed(2)}:1 — ${reason}.\n     Legal for ${permittedUsage(step.wcagRatio)}. Needs a non-colour cue. */\n`;
     const comment = options.includeMeasurements
       ? `  /* APCA Lc ${step.lc.toFixed(0)}, WCAG ${step.wcagRatio.toFixed(2)}:1 vs background */\n`
       : "";
@@ -169,6 +175,14 @@ export function exportJson(profile: Profile, draft: Draft, options: ExportOption
       // asked to carry anything. Following the hue is a choice to go below,
       // the same as the policy exemption, and is recorded as one.
       const meetsRole = meetsWcag(step.wcagRatio, role.requirement);
+      // "Unavoidable" and "by choice" are different facts about a token, and
+      // collapsing them re-introduced in JSON the mislabel the CSS reason
+      // selection exists to prevent.
+      const conformance = meetsRole
+        ? step.conformance
+        : step.verdict === "below-both"
+          ? "below-unavoidable"
+          : "below-by-choice";
       out[substitute(role.cssVar, intent)] = {
         value: step.hex,
         step: displayStep(step.stepIndex),
@@ -176,7 +190,7 @@ export function exportJson(profile: Profile, draft: Draft, options: ExportOption
         wcagRatio: Number(step.wcagRatio.toFixed(2)),
         verdict: step.verdict,
         requirement: role.requirement,
-        conformance: meetsRole ? step.conformance : "below-by-choice",
+        conformance,
         permittedUsage: permittedUsage(step.wcagRatio),
       };
       if (role.needsForeground && role.foregroundCssVar) {
