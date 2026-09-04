@@ -180,3 +180,28 @@ describe("what the move costs is reported", () => {
     }
   });
 });
+
+describe("a fill that lands on another role's step", () => {
+  it("is reported, since two roles the same colour is a lost distinction", () => {
+    // Yellow's light fill slides onto the step Surface strong already holds.
+    const draft = buildDraft(genericProfile, "x", "#ffeb3b");
+    const role = filledRole(genericProfile);
+    const step = draft.light.roles[role.key]!;
+    const clashing = genericProfile.roles.filter(
+      (r) => r.key !== role.key && draft.light.roles[r.key]?.hex === step.hex,
+    );
+    expect(clashing.length, "expected this hue to collide").toBeGreaterThan(0);
+
+    const findings = auditDraft(genericProfile, draft, [draftAsIntent(genericProfile, draft)]);
+    const found = findings.find((f) => f.id === `role-collision-light-${role.key}`);
+    expect(found).toBeDefined();
+    expect(found!.message).toContain(clashing[0]!.label);
+  });
+
+  it("says nothing when every role has its own colour", () => {
+    // Red does not move, so nothing can collide with it.
+    const draft = buildDraft(genericProfile, "x", "#f44336");
+    const findings = auditDraft(genericProfile, draft, [draftAsIntent(genericProfile, draft)]);
+    expect(findings.filter((f) => f.id.startsWith("role-collision-"))).toHaveLength(0);
+  });
+});

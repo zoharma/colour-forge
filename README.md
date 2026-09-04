@@ -117,6 +117,14 @@ walks the fill off the page: `#e3e60f` reached 1.19:1, where the border is not
 supplementing the fill, it is the entire component. A floor at 1.3:1 rules that
 out while leaving every hue the behaviour exists for untouched.
 
+One consequence is reported rather than prevented. A fill that slides far
+enough can land on a step another role already holds, and then a filled control
+and an outlined one are the same colour. Refusing steps other roles claim would
+fix it and cost too much: it drags orange's dark fill from `#f89e3c` back to
+`#d18739` and amber's from `#f7c13e` to `#ba9235`, which is the muddy fill the
+whole rule exists to avoid. So the collision is surfaced for a person to
+resolve, usually by moving one of the two roles to a different step.
+
 Across the 19 hues, 14 move in light and 13 in dark, and exactly six (cyan,
 teal, green, light green, lime, yellow) end up under 3:1 in light mode. Those
 carry a border obligation, flagged in the audit, on the family row, and in the

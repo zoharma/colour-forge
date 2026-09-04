@@ -426,6 +426,50 @@ function rampFindings(profile: Profile, draft: Draft): Finding[] {
   return findings;
 }
 
+/** Two roles in the same intent landing on the same colour.
+ *
+ *  A filled role slides to its most chromatic step, and for a hue that peaks
+ *  hard it can slide onto a step another role already sits on. Then a filled
+ *  button and an outlined one are the same colour, and the distinction the two
+ *  roles exist to draw is gone.
+ *
+ *  Reported rather than prevented, and the measurement is why: refusing steps
+ *  another role claims pulls orange's dark fill from #f89e3c back to #d18739
+ *  and amber's from #f7c13e to #ba9235, which is the muddy fill the placement
+ *  rule exists to avoid. It buys teal and lime a little contrast and costs the
+ *  two hues that most needed the brightness. So the collision is surfaced for
+ *  a person to resolve — usually by giving one of the two roles a different
+ *  step in the profile — rather than silently traded against. */
+function roleCollisionFindings(profile: Profile, draft: Draft): Finding[] {
+  const findings: Finding[] = [];
+
+  for (const mode of MODES) {
+    for (const role of profile.roles) {
+      if (!role.wantsSaturation) continue;
+      const step = draft[mode].roles[role.key];
+      if (!step) continue;
+
+      const sharing = profile.roles.filter(
+        (other) => other.key !== role.key && draft[mode].roles[other.key]?.hex === step.hex,
+      );
+      if (!sharing.length) continue;
+
+      const names = sharing.map((r) => r.label).join(" and ");
+      findings.push({
+        id: `role-collision-${mode}-${role.key}`,
+        severity: "warning",
+        category: "visibility",
+        mode,
+        role: role.key,
+        message: `${role.label} and ${names} are the same colour in ${mode} mode.`,
+        detail: `Both resolve to ${step.hex}. ${role.label} moved to step ${displayStep(step.stepIndex)} to keep this hue recognisable, and that is where ${names} already sits. Anything that distinguishes those roles by colour alone stops working: a filled control and an outlined one look identical. Give one of them a different step in the profile, or accept that this hue does not support both roles.`,
+      });
+    }
+  }
+
+  return findings;
+}
+
 function visibilityFindings(profile: Profile, draft: Draft): Finding[] {
   const findings: Finding[] = [];
 
@@ -480,6 +524,7 @@ export function auditDraft(profile: Profile, draft: Draft, family: SeededIntent[
     ...cvdFindings(profile, family, draft.name),
     ...familyFindings(profile, draft, siblings),
     ...visibilityFindings(profile, draft),
+    ...roleCollisionFindings(profile, draft),
     ...rampFindings(profile, draft),
   ].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
 }
