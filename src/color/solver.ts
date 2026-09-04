@@ -17,7 +17,7 @@
  *  so the compromise is visible instead of buried in a constant. */
 
 import { apcaFromY, apcaY, targetYForLc } from "./apca";
-import { oklchToGamutSafeLinear } from "./oklch";
+import { gamutChroma, oklchToGamutSafeLinear } from "./oklch";
 import { linearToRgb255, rgb255ToHex } from "./srgb";
 import { meetsWcag, oneLevelDown, wcagRatioHex, type WcagRequirement } from "./wcag";
 
@@ -218,6 +218,21 @@ export function solveWithoutHueProtection(
   return finish(aimAt, "ramp-spaced");
 }
 
+/** Convert at this lightness, holding the step back from the gamut hull when
+ *  its mode asks for headroom.
+ *
+ *  A colour clamped flat against the hull is the most saturated thing the
+ *  display can make at that lightness, and on a dark ground that is where it
+ *  stops reading as a colour and starts glaring — the effect the eye reports
+ *  as a red that vibrates. Measured across Material's 19 hues, eight of the
+ *  dark fills sat at or past the hull before this. Backing off a fixed
+ *  fraction pulls exactly those in and leaves a hue that was never near it
+ *  (green at 76%, the neutrals at 31%) untouched, so no hue needs naming. */
+function convert(ctx: StepContext, L: number) {
+  const ceiling = ctx.headroom === undefined ? Infinity : ctx.headroom * gamutChroma(L, ctx.hue);
+  return oklchToGamutSafeLinear(L, Math.min(ctx.chroma, ceiling), ctx.hue);
+}
+
 /** Rebuild a step at an explicit lightness, keeping its hue and chroma.
  *
  *  The ramp pass needs this: solving every step independently for contrast
@@ -232,7 +247,7 @@ export function stepAtLightness(
   idealTargetLc: number,
   verdict: ContrastVerdict,
 ): SolvedStep {
-  const { lin, chromaUsed } = oklchToGamutSafeLinear(L, ctx.chroma, ctx.hue);
+  const { lin, chromaUsed } = convert(ctx, L);
   const hex = rgb255ToHex(linearToRgb255(lin));
   const wcagRatio = wcagRatioHex(hex, ctx.backgroundHex);
   return {
@@ -258,6 +273,10 @@ export interface StepContext {
   hue: number;
   /** Chroma requested at this step, before gamut mapping. */
   chroma: number;
+  /** Fraction of the sRGB hull this step may spend, or undefined for all of
+   *  it. See `chromaHeadroom` on the profile mode for why a mode would want
+   *  to hold back. */
+  headroom?: number;
   backgroundHex: string;
   backgroundY: number;
   backgroundIsLight: boolean;
@@ -280,12 +299,12 @@ function solveAtTarget(
   let L = 0.5;
   for (let i = 0; i < BISECTION_STEPS; i++) {
     L = (lo + hi) / 2;
-    const { lin } = oklchToGamutSafeLinear(L, ctx.chroma, ctx.hue);
+    const { lin } = convert(ctx, L);
     if (apcaY(lin) > targetY) hi = L;
     else lo = L;
   }
 
-  const { lin, chromaUsed } = oklchToGamutSafeLinear(L, ctx.chroma, ctx.hue);
+  const { lin, chromaUsed } = convert(ctx, L);
   const hex = rgb255ToHex(linearToRgb255(lin));
   return {
     hex,

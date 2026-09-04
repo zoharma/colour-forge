@@ -204,6 +204,7 @@ export function generateScale(
     backgroundIsLight,
     requirement: requirements[i] ?? "none",
     policy,
+    headroom: modeSpec.chromaHeadroom,
   }));
   const probeLightness = probeContexts.map((ctx, i) => solveStep(ctx, curves.targetLc[i] ?? 0).L);
   const alignedChroma = cuspAlignedChroma(curves.chromaMultiplier, probeLightness, hueCusp(H).L);
@@ -215,6 +216,7 @@ export function generateScale(
     backgroundY,
     backgroundIsLight,
     requirement: requirements[i] ?? "none",
+    headroom: modeSpec.chromaHeadroom,
     policy,
   }));
 

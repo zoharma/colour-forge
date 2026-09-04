@@ -45,6 +45,8 @@ export const diamondProfile: Profile = {
       onSurface: "#e8eaf0",
       targetLc: [2, 5, 10, 20, 30, 45, 64, 74, 84, 89, 93, 97],
       chromaMultiplier: [0.25, 0.53, 0.75, 0.9, 1.21, 1.1, 1.0, 0.77, 0.53, 0.45, 0.4, 0.35],
+      // Held off the gamut hull: see chromaHeadroom on ProfileMode.
+      chromaHeadroom: 0.9,
       selector: '[data-mode="dark"]',
     },
   },

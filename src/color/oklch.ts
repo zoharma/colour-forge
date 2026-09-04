@@ -82,6 +82,14 @@ export function oklchToGamutSafeLinear(L: number, C: number, H: number): GamutRe
   };
 }
 
+/** The most chroma sRGB holds for this hue at this lightness: the gamut hull.
+ *
+ *  Asking for far more than exists and reading back what survived is the
+ *  cheapest way to find it, and it is exactly what the mapper does anyway. */
+export function gamutChroma(L: number, H: number): number {
+  return oklchToGamutSafeLinear(L, 0.5, H).chromaUsed;
+}
+
 export function oklchToHex(L: number, C: number, H: number): string {
   return rgb255ToHex(linearToRgb255(oklchToGamutSafeLinear(L, C, H).lin));
 }

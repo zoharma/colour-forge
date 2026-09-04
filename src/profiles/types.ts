@@ -65,6 +65,15 @@ export interface ProfileMode {
    *  one. One shared curve cannot fit both; two can. */
   targetLc: number[];
   chromaMultiplier: number[];
+  /** Fraction of the sRGB gamut hull a step may spend, or omitted for all of
+   *  it.
+   *
+   *  A colour clamped flat against the hull is the most saturated thing the
+   *  display can produce at that lightness. On a dark ground that is where it
+   *  stops reading as a colour and starts glaring. Holding back a fixed
+   *  fraction pulls in exactly the hues that were pinned there and leaves the
+   *  ones that never got near it alone, so no hue has to be named. */
+  chromaHeadroom?: number;
   /** Selector the exported CSS block is written under. */
   selector: string;
 }
