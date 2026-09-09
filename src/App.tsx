@@ -167,7 +167,9 @@ export function App() {
             keeping it in the bar would pin a couple of hundred pixels of
             prose on a phone. */}
         <header className="top">
-          <h1>Colour Forge</h1>
+          <h1>
+            Colour Forge <span className="version-badge">v{__APP_VERSION__}</span>
+          </h1>
           <div className="view-controls">
             <div className="segmented" role="group" aria-label="Page theme">
               {(["system", "light", "dark"] as ThemeChoice[]).map((choice) => (
