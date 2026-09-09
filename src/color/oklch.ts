@@ -69,16 +69,35 @@ export interface GamutResult {
   chromaUsed: number;
 }
 
+/** Binary search rather than a fixed multiplicative step: a flat percentage
+ *  cut per iteration only ever lands chromaUsed / C on the same handful of
+ *  rungs (1, 0.92, 0.92², …), so anything that needs a hair more reduction
+ *  than one rung allows was jumping to the next one down — a far bigger cut
+ *  than the gamut boundary actually required. Bisecting finds the true edge
+ *  to arbitrary precision instead of one of a dozen fixed points. */
 export function oklchToGamutSafeLinear(L: number, C: number, H: number): GamutResult {
-  let c = C;
-  let lin = oklabToLinear(oklchToOklab({ L, C: c, H }));
-  for (let i = 0; i < 24 && !inGamut(lin); i++) {
-    c *= 0.92;
-    lin = oklabToLinear(oklchToOklab({ L, C: c, H }));
+  const lin = oklabToLinear(oklchToOklab({ L, C, H }));
+  if (inGamut(lin)) {
+    return { lin: { r: clamp01(lin.r), g: clamp01(lin.g), b: clamp01(lin.b) }, chromaUsed: C };
+  }
+
+  // 0 is always in gamut (achromatic sits on the grey axis), so it anchors lo.
+  let lo = 0;
+  let hi = C;
+  let bestLin = oklabToLinear(oklchToOklab({ L, C: lo, H }));
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    const candidate = oklabToLinear(oklchToOklab({ L, C: mid, H }));
+    if (inGamut(candidate)) {
+      lo = mid;
+      bestLin = candidate;
+    } else {
+      hi = mid;
+    }
   }
   return {
-    lin: { r: clamp01(lin.r), g: clamp01(lin.g), b: clamp01(lin.b) },
-    chromaUsed: c,
+    lin: { r: clamp01(bestLin.r), g: clamp01(bestLin.g), b: clamp01(bestLin.b) },
+    chromaUsed: lo,
   };
 }
 

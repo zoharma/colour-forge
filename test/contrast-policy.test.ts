@@ -11,11 +11,17 @@ import { diamondProfile } from "../src/profiles/diamond";
 const POLICIES: ContrastPolicy[] = ["wcag-strict", "wcag-relaxed", "hue-first"];
 
 /** Hues whose identity lives in a band of lightness that 4.5:1 sits outside
- *  of. Forcing conformance on these produces a brown or an olive. */
+ *  of. Forcing conformance on these produces a brown or an olive.
+ *
+ *  Orange is not among them here: at exact gamut precision, Material's
+ *  orange 500 reaches 4.5:1 in the generic profile's text role close enough
+ *  to its ideal lightness that the 0.02-chroma exemption gate never fires.
+ *  It still needs the exemption elsewhere (Diamond's `base` role in light
+ *  mode) — see the README's "six hues" note, now four. */
 const CONFLICTED = [
-  ["orange", "#ff9800"],
   ["amber", "#ffc107"],
   ["lime", "#cddc39"],
+  ["yellow", "#ffeb3b"],
 ] as const;
 
 /** Hues with room to reach the criterion and stay themselves. The policy
@@ -84,14 +90,14 @@ describe("contrast policy", () => {
   });
 
   it("marks a deliberate miss as chosen, not as an unavoidable failure", () => {
-    const step = textStep("#ff9800", "hue-first");
+    const step = textStep("#ffc107", "hue-first");
     expect(step.conformance).toBe("below-by-choice");
     expect(step.requirement).toBe("body");
     expect(step.effectiveRequirement).toBe("none");
   });
 
   it("names what a below-AA colour is actually legal for", () => {
-    const step = textStep("#ff9800", "wcag-relaxed");
+    const step = textStep("#ffc107", "wcag-relaxed");
     expect(permittedUsage(step.wcagRatio)).toContain("large text");
     expect(permittedUsage(9)).toContain("AAA");
     expect(permittedUsage(1.5)).toContain("Decoration only".toLowerCase().slice(0, 10));
@@ -142,7 +148,7 @@ describe("full-scale export", () => {
 
   it("writes a deliberate AA miss into the role export, not just the UI", async () => {
     const { exportCss } = await import("../src/color/export");
-    const css = exportCss(genericProfile, buildDraft(genericProfile, "warning", "#ff9800", "hue-first"));
+    const css = exportCss(genericProfile, buildDraft(genericProfile, "warning", "#ffc107", "hue-first"));
     expect(css).toContain("kept for hue");
     expect(css).toContain("non-colour cue");
   });

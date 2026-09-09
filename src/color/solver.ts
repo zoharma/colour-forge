@@ -240,17 +240,17 @@ function lowestTargetClearingWcag(
 /** Highest target Lc at or below `idealLc` that still keeps enough chroma.
  *
  *  Scanned, not bisected, because retention is **not monotonic in the
- *  target**. It peaks somewhere in the midtones and falls away at both ends:
+ *  target**. It peaks at a single lightness and falls away on both sides:
  *  toward the dark end the gamut narrows as the colour is forced down, and
  *  toward the light end it narrows again as the colour approaches the
- *  background. Amber is the clearest case — its plateau sits around Lc 22–40
- *  at a retention of ~0.92, with 0.15 at Lc 0 and 0.51 at Lc 80.
+ *  background. Amber is the clearest case — its peak sits around Lc 25 at a
+ *  retention of 1.0, falling to 0.15 at Lc 0 and 0.54 at Lc 80.
  *
- *  A bisection over that shape is simply invalid. Probing amber at Lc 37.5
- *  returns 0.846, four thousandths under the floor, so the search steps down
- *  into the pale end, never recovers, and lands on a target with less chroma
- *  than where it started — silently abandoning the protection for the hues
- *  that need it most.
+ *  A bisection over that shape is simply invalid. Probing amber around Lc 46
+ *  returns a retention just under the floor, so the search steps down into
+ *  the pale end, never recovers, and lands on a target with less chroma than
+ *  where it started — silently abandoning the protection for the hues that
+ *  need it most.
  *
  *  So: scan the range coarsely for the highest target that clears the floor,
  *  then refine that bracket. If nothing clears it, fall back to the peak,

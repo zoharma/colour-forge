@@ -75,8 +75,8 @@ that would make it worse than useless:
 - **The exemption must buy something.** Giving up conformance has to gain at
   least 0.02 of OKLab chroma. Left ungated a blue will happily trade AA for
   0.013 of chroma that nobody can see. Measured across Material's 19 core
-  hues, six need the exemption (lime, yellow, amber, orange, light blue and
-  cyan) and the other thirteen are untouched.
+  hues, four need the exemption somewhere in the role set (amber, lime,
+  orange and yellow) and the other fifteen are untouched.
 
 Anything below its requirement is a **blocker**, not a note: it is a decision
 that has to reach whoever implements it. The audit names what the ratio is
