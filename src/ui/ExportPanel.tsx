@@ -42,7 +42,7 @@ export function ExportPanel({ profile, draft, foregroundOverrides }: Props) {
       await navigator.clipboard.writeText(output);
       setStatus("Copied.");
     } catch {
-      setStatus("Copy failed — select the text and copy manually.");
+      setStatus("Copy failed. Select the text and copy manually.");
     }
     setTimeout(() => setStatus(""), 2000);
   };
@@ -73,7 +73,7 @@ export function ExportPanel({ profile, draft, foregroundOverrides }: Props) {
       </label>
       <textarea id="export-output" className="output" readOnly spellCheck={false} value={output} />
       <p className="foot-note" aria-live="polite">
-        {status || `${FORMAT_NOTES[format]} Nothing is written back to any file — review, then paste in by hand.`}
+        {status || `${FORMAT_NOTES[format]} Nothing is written back to any file. Review, then paste in by hand.`}
       </p>
     </>
   );

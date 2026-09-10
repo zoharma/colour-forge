@@ -59,13 +59,14 @@ conformance there does not produce an accessible orange. It produces a
 compliant brown, plus a designer who overrides the tool by hand and loses the
 record of why.
 
-So the conflict is a setting, defaulting to holding the line:
+So the conflict is a setting, defaulting to a real compromise between the
+two rather than either extreme:
 
 | Policy | Where hue and contrast conflict |
 | --- | --- |
-| **Hold WCAG 2.2** (default) | Never return a colour below the role's requirement. |
-| **Allow one level down** | Drop one *named* level, so body text becomes large-text-only and a boundary becomes decorative. Bounded, not arbitrary. |
-| **Keep the hue** | Keep the colour and report what the ratio is actually legal for. |
+| **More APCA** | Solve to the APCA target and keep the hue's chroma, still taking full WCAG 2.2 conformance wherever it's free. Never trades chroma away to force it. |
+| **System default** | Drop one *named* level rather than take the full APCA-first result, so body text becomes large-text-only and a boundary becomes decorative. Bounded, not arbitrary — the balance between the two extremes. |
+| **Full WCAG 2.2** | Never return a colour below the role's requirement, no matter what it costs the hue. |
 
 Two guards stop this becoming a blanket downgrade, which is the failure mode
 that would make it worse than useless:
@@ -75,13 +76,36 @@ that would make it worse than useless:
 - **The exemption must buy something.** Giving up conformance has to gain at
   least 0.02 of OKLab chroma. Left ungated a blue will happily trade AA for
   0.013 of chroma that nobody can see. Measured across Material's 19 core
-  hues, four need the exemption somewhere in the role set (amber, lime,
-  orange and yellow) and the other fifteen are untouched.
+  hues, three need the exemption somewhere in the role set (amber, lime and
+  yellow) and the other sixteen are untouched.
 
 Anything below its requirement is a **blocker**, not a note: it is a decision
 that has to reach whoever implements it. The audit names what the ratio is
 legal for and what obligation comes with it, and the same note is written into
 the exported CSS so it survives the paste into a token file.
+
+### System default picks its measure per role, not globally
+
+The same "real compromise, not either extreme" idea decides which measure to
+*trust* when choosing a foreground for a surface, and it depends on what that
+surface actually is:
+
+- **A solid fill already carries a real WCAG requirement** (a button answers
+  to 1.4.11 at 3:1 on its own). With that floor already enforced, APCA is the
+  better judge of which candidate is genuinely legible on it — WCAG's ratio
+  alone will happily recommend a black that reads as "passing" and unreadably
+  harsh against a saturated tint.
+- **A quiet container has no requirement of its own.** With nothing forcing a
+  floor, WCAG's ratio is the safer default there: it favours a subtler,
+  lighter tint over the darkest, most-legible-by-APCA option that a container
+  does not need.
+
+So under System default, a role with a real requirement trusts APCA; a role
+without one trusts WCAG. More APCA and Full WCAG 2.2 pick one measure for
+every role instead. Either way, a candidate is only shown as struck through
+when it fails the measure actually being trusted for that role, not raw WCAG
+pass/fail — an option that reads fine by APCA is never crossed out just
+because its ratio is short of 4.5:1.
 
 ## Pinning the seed to a role
 
@@ -138,26 +162,34 @@ floor condemns the entire container system and buries the findings that matter
 
 A profile is the whole of what makes the tool specific to a design system:
 role names, what each role is used for, which scale step it takes in each
-mode, the target and chroma curves, the CSS naming convention, and the existing
-intents to check against.
+mode, the CSS naming convention, and the existing intents to check against.
+
+The `targetLc`/`chromaMultiplier` curve itself is **not** one of those
+things — every profile shares the same curve, tuned once against a sweep of
+Material's 19 hues to keep any two steps from converging on the same colour.
+A profile's character comes entirely from its token names and which step
+each role claims, never from a bespoke curve.
 
 - **Generic**: six usage-named roles and `--color-{intent}-*` naming. The
-  starting point when the tool does not already know your system. Its curves
-  are a reasoned default rather than a fit to a shipped palette. Its
+  starting point when the tool does not already know your system. Its
   comparison family is MUI's six default intents, derived through this same
   solver. That is a palette real applications ship, so "does my colour collide
   with anything" is asked against something real. (MUI publishes no per-role
   values for these roles, so those are derived here and labelled as derived.)
 - **Diamond Light Source**: the `--ds-*` role set from
   [sci-react-ui](https://github.com/DiamondLightSource/sci-react-ui), with the
-  nine shipped intents loaded. Its curves are fitted to `DiamondDSTokens.css`
-  so that each named role's real value falls at a specific step, which is why
-  light and dark disagree about the order of `accent` and `solid`.
+  nine shipped intents loaded. `seedPalette` and `family` hold the real values
+  shipped in `DiamondDSTokens.css`, so seeding from one of Diamond's own
+  intents checks how closely the shared curve lands near what Diamond ships
+  by hand. `accent` and `solid` disagree about their step between light and
+  dark, carried over from those real tokens: a solid fill reads as itself
+  from chroma alone and wants less luminance separation in dark mode, while
+  `accent`, the smaller role beside it, needs more.
 
 Adding one is a data change: see `src/profiles/types.ts`, then copy
-`diamond.ts` as a worked example. To make a profile land on values you would
-have chosen by hand, fit its `targetLc` and `chromaMultiplier` arrays to
-tokens you have already shipped, the way the Diamond profile does.
+`diamond.ts` as a worked example. Reuse the shared curve and choose which
+step each role claims in each mode; only touch `targetLc`/`chromaMultiplier`
+if this design system's own tokens genuinely need a different shape.
 
 ## Deployment
 

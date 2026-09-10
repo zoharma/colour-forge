@@ -26,7 +26,7 @@ export function SeedPicker({ profile, seedHex, cvdView, onPick }: Props) {
             type="button"
             className="seed-swatch"
             aria-pressed={selected}
-            title={`${hue.name} — ${hue.hex}`}
+            title={`${hue.name}: ${hue.hex}`}
             style={{ background: simulateCvdHex(hue.hex, cvdView) }}
             onClick={() => onPick(hue.hex)}
           >

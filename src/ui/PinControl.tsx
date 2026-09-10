@@ -68,7 +68,7 @@ export function PinControl({ profile, pin, suggestion, onChange }: Props) {
           <>
             That role is the seed colour exactly, and the rest of the{" "}
             <strong>{pin?.mode}</strong> ramp is solved around it.{" "}
-            <strong>{pin?.mode === "light" ? "Dark" : "Light"} is untouched</strong> — one hex cannot be
+            <strong>{pin?.mode === "light" ? "Dark" : "Light"} is untouched.</strong> One hex cannot be
             right against both a white page and a near-black one, so pinning both is how half a palette
             ends up wrong. The pinned colour is still measured: if it cannot carry the role, that is
             reported.

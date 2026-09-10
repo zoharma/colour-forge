@@ -192,7 +192,11 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
                           {isDraft ? (
                             <span className="readout">{hex || "—"}</span>
                           ) : (
+                            // Uncontrolled, so typing isn't reformatted mid-edit; keyed on
+                            // hex so a value changed elsewhere (reset, snapshot, a seed
+                            // swap) still remounts the field instead of leaving it stale.
                             <input
+                              key={hex}
                               className="hexfield"
                               type="text"
                               defaultValue={hex}
@@ -229,8 +233,8 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
       </p>
       <p className="foot-note">
         Drag a row by its handle, or focus the handle and use the arrow keys, to reorder the set. The live
-        draft stays last. Blank means the role has no shipped value for that intent — left empty rather than guessed, and
-        skipped by the separation checks.
+        draft stays last. Blank means the role has no shipped value for that intent. It is left empty
+        rather than guessed, and skipped by the separation checks.
       </p>
     </>
   );

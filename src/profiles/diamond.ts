@@ -2,32 +2,27 @@ import type { Profile } from "./types";
 
 /** Diamond Light Source — sci-react-ui's DiamondDS theme.
  *
- *  The curves below are not a generic ramp with role names dropped onto it.
- *  They were fitted so that every named role's measured value in the shipped
- *  `DiamondDSTokens.css` falls at a specific index, which is why light and
- *  dark disagree about the order of `accent` and `solid`: against a light
- *  page an accent behaves like near-text and needs real luminance
- *  separation (Lc 51) while a solid fill gets by on chroma (Lc 66); against
- *  a dark page that inverts (solid 30, accent 74). One shared index cannot
- *  hold both, two independent arrays can.
+ *  Role positions follow this tool's own surface/container/solid/text
+ *  standard, the same one `generic` uses. `seedPalette` and `family` hold
+ *  the real values shipped in DiamondDSTokens.css, so seeding from one of
+ *  Diamond's own intents checks "does this land near what I'd have
+ *  chosen" — the positions are the tool's, the palette is Diamond's.
  *
- *  The container targets are the weak part and are marked as such: container
- *  roles separate from the background by chroma, not luminance, so their real
- *  APCA Lc against the background is ~0 in both modes and there is nothing
- *  for the solver to fit. Their targets are small placeholders that keep the
- *  three container steps ordered. `container-low` and `container-high` have
- *  no shipped precedent at all — they are extrapolated from `container`'s
- *  pattern, not measured.
+ *  `accent` and `solid` swap which one sits further out between light and
+ *  dark: a solid fill reads as itself from chroma alone and wants less
+ *  luminance separation in dark mode, while `accent`, the smaller, quieter
+ *  role beside it, needs more. See `generic.ts` for the full reasoning.
  *
- *  Unused indices (3, 5, 9, 10, 11) are genuine headroom for a one-off
- *  colour outside the named roles, the way MUI's grey scale gets used well
- *  beyond its few named neutral roles. */
+ *  Curves are shared with `generic`, tuned once against a sweep of
+ *  Material's 19 hues — Diamond's backgrounds are close enough that
+ *  re-tuning from scratch would just rediscover the same numbers. */
 export const diamondProfile: Profile = {
   id: "diamond",
   name: "Diamond Light Source (DiamondDS)",
   description:
     "The --ds-* role set from @diamondlightsource/sci-react-ui, with the nine shipped intents loaded for cross-checking.",
-  provenance: "Curves fitted to DiamondDSTokens.css at sci-react-ui v0.6.2. Verify against the version you are on.",
+  provenance:
+    "Role positions follow this tool's own surface/container/solid/text standard. seedPalette and family below are the real values from sci-react-ui v0.6.2.",
   scaleSize: 12,
 
   modes: {
@@ -35,16 +30,16 @@ export const diamondProfile: Profile = {
       background: "#f6f6f9",
       surface: "#ffffff",
       onSurface: "#1a1c23",
-      targetLc: [2, 5, 10, 30, 51, 58, 66, 75, 82, 88, 93, 97],
-      chromaMultiplier: [0.1, 0.21, 0.32, 0.55, 1.24, 1.15, 1.11, 1.0, 0.86, 0.75, 0.6, 0.45],
+      targetLc: [3, 8, 16, 30, 45, 58, 66, 75, 85, 90, 94, 98],
+      chromaMultiplier: [0.12, 0.24, 0.4, 0.6, 1.0, 1.15, 1.1, 1.0, 0.9, 0.8, 0.68, 0.55],
       selector: ':root, [data-mode="light"]',
     },
     dark: {
       background: "#0e1017",
       surface: "#161820",
       onSurface: "#e8eaf0",
-      targetLc: [2, 5, 10, 20, 30, 45, 64, 74, 84, 89, 93, 97],
-      chromaMultiplier: [0.25, 0.53, 0.75, 0.9, 1.21, 1.1, 1.0, 0.77, 0.53, 0.45, 0.4, 0.35],
+      targetLc: [3, 8, 15, 24, 34, 48, 62, 74, 84, 90, 94, 98],
+      chromaMultiplier: [0.3, 0.55, 0.78, 0.95, 1.2, 1.1, 1.0, 0.85, 0.75, 0.65, 0.55, 0.45],
       selector: '[data-mode="dark"]',
     },
   },
@@ -102,7 +97,7 @@ export const diamondProfile: Profile = {
     {
       key: "base",
       label: "Base",
-      index: { light: 7, dark: 6 },
+      index: { light: 9, dark: 9 },
       usage: "text",
       requirement: "body",
       needsForeground: true,
@@ -113,7 +108,7 @@ export const diamondProfile: Profile = {
     {
       key: "emphasis",
       label: "Emphasis",
-      index: { light: 8, dark: 8 },
+      index: { light: 10, dark: 10 },
       usage: "boundary",
       requirement: "non-text",
       cssVar: "--ds-{intent}-emphasis",

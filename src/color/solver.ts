@@ -1,20 +1,18 @@
 /** Solving one step of a scale.
  *
  *  The tool takes APCA as the working measure and WCAG 2.2 as the floor,
- *  because each one is wrong in a different direction:
+ *  because each is wrong in a different direction. Pure APCA over-corrects
+ *  at the saturated end — pushing a red to its dark-mode Lc target makes it
+ *  a pale pink that has stopped being red. Pure WCAG 2.x under-corrects in
+ *  the midtones and over-corrects at the dark end, which is why APCA exists
+ *  at all — but it is still what a conformance audit is written against.
  *
- *  - Pure APCA over-corrects at the saturated end. Pushing a red to its
- *    dark-mode Lc target makes it a pale pink that has stopped being red;
- *    the number is satisfied and the colour is useless.
- *  - Pure WCAG 2.x under-corrects in the midtones and over-corrects at the
- *    dark end, which is the whole reason APCA exists — but it is still what
- *    a conformance audit is written against, so it cannot simply be ignored.
- *
- *  So a step is solved to the APCA target, and then allowed to ease off that
- *  target — only as far as this specific hue actually needs, measured live —
- *  to keep its chroma, but never below what WCAG 2.2 requires for how the
- *  role is used. Every step reports which of those three things decided it,
- *  so the compromise is visible instead of buried in a constant. */
+ *  So a step is solved to the APCA target, then allowed to move off it —
+ *  toward more contrast or less, whichever direction actually recovers
+ *  colour, only as far as it needs, measured live — to keep its chroma, but
+ *  never below what WCAG 2.2 requires for how the role is used. Every step
+ *  reports which of those three things decided it, so the compromise is
+ *  visible instead of buried in a constant. */
 
 import { apcaFromY, apcaY, targetYForLc } from "./apca";
 import { oklchToGamutSafeLinear } from "./oklch";
@@ -32,32 +30,38 @@ import { meetsWcag, oneLevelDown, wcagRatioHex, type WcagRequirement } from "./w
  *  overrides the tool by hand and loses the record of why.
  *
  *  So missing AA is available as a decision, with its consequence named and
- *  carried through to the audit and the exported comment. It is never the
- *  default, and it never fires where there is no real conflict. */
+ *  carried through to the audit and the exported comment. It never fires
+ *  where there is no real conflict, at any policy — including the default,
+ *  which itself only concedes one level, not an unbounded drop. */
 export type ContrastPolicy =
-  /** Never return a colour below the role's requirement. */
-  | "wcag-strict"
-  /** Where hue and contrast conflict, allow one named level down — body text
-   *  becomes large-text-only, a boundary becomes decorative. Still a level
-   *  with a defined meaning, not an unbounded drop. */
+  /** The default: a real compromise, not either extreme. Where hue and
+   *  contrast conflict, allow one named level down — body text becomes
+   *  large-text-only, a boundary becomes decorative — rather than fully
+   *  chasing APCA or fully holding WCAG 2.2. Still a level with a defined
+   *  meaning, not an unbounded drop. */
   | "wcag-relaxed"
-  /** Where they conflict, keep the colour and report exactly what the
-   *  resulting ratio is legal for. */
-  | "hue-first";
+  /** Solve to the APCA target and keep the hue's chroma, taking full WCAG
+   *  2.2 conformance wherever it is free (see solveStep) but never trading
+   *  chroma away to force it. The override for leaning all the way toward
+   *  APCA — a hue that cannot hold both should not come out browner or
+   *  greyer just to satisfy a ratio nobody would notice was different. */
+  | "hue-first"
+  /** Never return a colour below the role's requirement, full stop. Some
+   *  hues cannot stay themselves under this and will come out browner or
+   *  greyer than the seed — the override for when conformance is
+   *  non-negotiable regardless of what it costs the hue. */
+  | "wcag-strict";
 
 export const POLICY_LABELS: Record<ContrastPolicy, string> = {
-  "wcag-strict": "Hold WCAG 2.2",
-  "wcag-relaxed": "Allow one level down",
-  "hue-first": "Keep the hue",
+  "hue-first": "More APCA",
+  "wcag-relaxed": "System default",
+  "wcag-strict": "Full WCAG 2.2",
 };
 
 export const POLICY_DESCRIPTIONS: Record<ContrastPolicy, string> = {
-  "wcag-strict":
-    "Never return a colour below what the role's usage requires. Some hues cannot stay themselves under this and will come out browner or greyer than the seed.",
-  "wcag-relaxed":
-    "Where hue and contrast genuinely conflict, drop one named level — body text becomes large-text-only, a boundary becomes decorative. The obligation that comes with it is reported.",
-  "hue-first":
-    "Where they conflict, keep the colour and report what the ratio is actually legal for. Anything below AA needs a non-colour cue alongside it.",
+  "hue-first": "Keeps the hue and its chroma, taking WCAG 2.2 only where it's free.",
+  "wcag-relaxed": "Balances the two: drops one contrast level rather than fully chase the hue, where they conflict.",
+  "wcag-strict": "Never drops below the role's requirement, whatever it costs the hue.",
 };
 
 /** How the role's requirement is read under a policy. Only the easing-off
@@ -75,7 +79,8 @@ export function effectiveRequirement(
 export type ContrastVerdict =
   /** Hit the profile's APCA target with the hue intact. */
   | "apca-met"
-  /** Eased off the APCA target to keep the colour recognisable. Still clears
+  /** Moved off the APCA target — toward more contrast or less, whichever
+   *  side actually had the colour — to keep it recognisable. Still clears
    *  WCAG 2.2 for this role's usage. */
   | "hue-protected"
   /** WCAG 2.2 stopped the easing-off short, or demanded more contrast than
@@ -132,22 +137,20 @@ export interface SolvedStep {
  *  orange recognisably orange at a small contrast cost. */
 export const CHROMA_RETENTION_FLOOR = 0.85;
 
-/** Retention alone is the wrong trigger, because it is a ratio and says
- *  nothing about how much colour is actually at stake.
+/** Retention alone is the wrong trigger: it's a ratio and says nothing
+ *  about how much colour is actually at stake. Near white the sRGB gamut
+ *  holds almost no chroma at all, so a pale tint asked for 0.039 and given
+ *  0.011 scores a retention of 0.29 and trips the floor — but the 0.028 it
+ *  "lost" is invisible, and easing the target doesn't recover it, because
+ *  that's exactly where the gamut is narrowest. Left on retention alone the
+ *  solver pays the full contrast cost, gains nothing, and collapses
+ *  neighbouring pale steps onto the same colour.
  *
- *  Near white the sRGB gamut holds almost no chroma at all, so a pale tint
- *  asked for 0.039 and given 0.011 scores a retention of 0.29 and trips the
- *  floor — but the 0.028 it "lost" is invisible in a near-white, and easing
- *  the contrast target does not recover any of it, because the lightness
- *  that eases toward is exactly where the gamut is narrowest. Left on
- *  retention alone the solver pays the full contrast cost, gains nothing,
- *  and collapses neighbouring pale steps onto the same colour.
- *
- *  So the relaxation has to earn its keep: it is only taken if it actually
- *  produces meaningfully more chroma than solving at the target did. That is
- *  self-checking rather than another tuned threshold — it fires hard for a
- *  yellow or an orange, which genuinely do recover their character at a
- *  lower target, and not at all for a tint that had no chroma to lose. */
+ *  So the relaxation has to earn its keep: only taken if it produces
+ *  meaningfully more chroma than solving at the target did. Self-checking
+ *  rather than another tuned threshold — it fires hard for a yellow or an
+ *  orange, which genuinely recover their character at a lower target, and
+ *  not at all for a tint that had no chroma to lose. */
 const MIN_CHROMA_GAIN = 0.01;
 
 /** How much extra chroma has to be on the table before the solver will give
@@ -177,6 +180,14 @@ export interface StepContext {
   backgroundIsLight: boolean;
   requirement: WcagRequirement;
   policy: ContrastPolicy;
+  /** Target Lc of the steps either side of this one in the scale, if any.
+   *  Hue protection can now move a target toward *more* contrast as well as
+   *  less (see `highestTargetKeepingChroma`), so without a bound it can walk
+   *  a step past its neighbour's own target and break the scale's order —
+   *  step 4 ending up lighter than step 5. These cap the search so a step
+   *  never reaches past the rung next to it. */
+  prevTargetLc?: number;
+  nextTargetLc?: number;
 }
 
 /** Solve for the colour that hits `targetLc` against the context background,
@@ -237,51 +248,90 @@ function lowestTargetClearingWcag(
   return high;
 }
 
-/** Highest target Lc at or below `idealLc` that still keeps enough chroma.
+/** Target Lc nearest `idealLc` — in whichever direction actually helps —
+ *  that still keeps enough chroma.
  *
  *  Scanned, not bisected, because retention is **not monotonic in the
- *  target**. It peaks at a single lightness and falls away on both sides:
- *  toward the dark end the gamut narrows as the colour is forced down, and
- *  toward the light end it narrows again as the colour approaches the
- *  background. Amber is the clearest case — its peak sits around Lc 25 at a
- *  retention of 1.0, falling to 0.15 at Lc 0 and 0.54 at Lc 80.
+ *  target**. It peaks at a single lightness and falls away on both sides, as
+ *  the gamut narrows toward black one way and toward white the other. Which
+ *  side of that peak `idealLc` lands on depends on the hue *and* the
+ *  background polarity: amber's peak chroma sits around Lc 25 against a
+ *  light background, so easing off a deeper target means *less* contrast —
+ *  but against a dark background a hue's peak can sit well past what a
+ *  low- or mid-scale target asks for, so recovering chroma there means
+ *  *more* contrast, the opposite move. A search that only ever eases toward
+ *  less contrast finds nothing for that case and silently gives up right
+ *  where the protection matters most.
  *
- *  A bisection over that shape is simply invalid. Probing amber around Lc 46
- *  returns a retention just under the floor, so the search steps down into
- *  the pale end, never recovers, and lands on a target with less chroma than
- *  where it started — silently abandoning the protection for the hues that
- *  need it most.
- *
- *  So: scan the range coarsely for the highest target that clears the floor,
- *  then refine that bracket. If nothing clears it, fall back to the peak,
- *  which is the best this hue can do; the caller still checks whether taking
- *  it actually buys any visible chroma. */
+ *  So: probe one step either side of `idealLc` to see which way retention is
+ *  rising, then scan that direction for the nearest target that clears the
+ *  floor, then refine that bracket. If nothing clears it, fall back to the
+ *  peak found along the way — the caller still checks whether taking it
+ *  actually buys any visible chroma. */
 const SCAN_STEP_LC = 1;
 
 function highestTargetKeepingChroma(ctx: StepContext, idealLc: number): number {
-  let bestChromaTarget = idealLc;
-  let bestChroma = -1;
+  const upBound = Math.min(MAX_TARGET_LC, ctx.nextTargetLc ?? MAX_TARGET_LC);
+  const downBound = Math.max(0, ctx.prevTargetLc ?? 0);
 
-  for (let target = idealLc; target >= 0; target -= SCAN_STEP_LC) {
+  const idealChroma = solveAtTarget(ctx, idealLc).chroma;
+  const downChroma =
+    idealLc - SCAN_STEP_LC >= downBound ? solveAtTarget(ctx, idealLc - SCAN_STEP_LC).chroma : -1;
+  const upChroma = idealLc + SCAN_STEP_LC <= upBound ? solveAtTarget(ctx, idealLc + SCAN_STEP_LC).chroma : -1;
+  if (downChroma < 0 && upChroma < 0) return idealLc;
+  const direction = upChroma > downChroma ? 1 : -1;
+  const bound = direction > 0 ? upBound : downBound;
+
+  let bestTarget = idealLc;
+  let bestChroma = idealChroma;
+  let prevTarget = idealLc;
+
+  for (
+    let target = idealLc + direction * SCAN_STEP_LC;
+    direction > 0 ? target <= bound : target >= bound;
+    target += direction * SCAN_STEP_LC
+  ) {
     const step = solveAtTarget(ctx, target);
     if (step.chroma > bestChroma) {
       bestChroma = step.chroma;
-      bestChromaTarget = target;
+      bestTarget = target;
     }
     if (step.chromaRetention >= CHROMA_RETENTION_FLOOR) {
-      // Refine upward inside the one-Lc bracket we just crossed.
-      let lo = target;
-      let hi = Math.min(target + SCAN_STEP_LC, idealLc);
+      // Refine inside the bracket we just crossed, toward the boundary
+      // nearest idealLc — the smallest move off target that still clears
+      // the floor.
+      let lo = direction > 0 ? prevTarget : target;
+      let hi = direction > 0 ? target : prevTarget;
       for (let i = 0; i < 12; i++) {
         const mid = (lo + hi) / 2;
-        if (solveAtTarget(ctx, mid).chromaRetention >= CHROMA_RETENTION_FLOOR) lo = mid;
-        else hi = mid;
+        const clears = solveAtTarget(ctx, mid).chromaRetention >= CHROMA_RETENTION_FLOOR;
+        if (direction > 0 ? clears : !clears) hi = mid;
+        else lo = mid;
       }
-      return lo;
+      return direction > 0 ? hi : lo;
     }
+    prevTarget = target;
   }
 
-  return bestChromaTarget;
+  return bestTarget;
+}
+
+/** Solve at the best chroma reachable within `ctx`'s `prevTargetLc`/
+ *  `nextTargetLc` bound, without `solveStep`'s "is this worth the contrast
+ *  cost" gate (`MIN_CHROMA_GAIN`).
+ *
+ *  That gate is the right question when first deciding *whether* to protect
+ *  a hue at all, but separating two steps that already collided is a
+ *  different question — the decision to protect this hue was already made
+ *  once, unbounded, and re-running it through the same gate here can throw
+ *  it away over a rounding difference against the wrong reference point.
+ *  This skips straight to "what's the best chroma this bound allows," the
+ *  only question left once a retreat is already the answer. */
+export function retreatWithinBound(ctx: StepContext, idealTargetLc: number): SolvedStep {
+  const target = highestTargetKeepingChroma(ctx, idealTargetLc);
+  const solved = solveAtTarget(ctx, target);
+  const conformance: Conformance = meetsWcag(solved.wcagRatio, ctx.requirement) ? "meets" : "below-by-choice";
+  return { ...solved, targetLc: idealTargetLc, verdict: "hue-protected", conformance };
 }
 
 export function solveStep(ctx: StepContext, idealTargetLc: number): SolvedStep {
@@ -333,8 +383,9 @@ export function solveStep(ctx: StepContext, idealTargetLc: number): SolvedStep {
     return finish(idealTargetLc, "apca-met");
   }
 
-  // The hue cannot reach its APCA target without washing out. Ease off as far
-  // as it needs — then put the effective requirement under it as a floor.
+  // The hue cannot reach its APCA target without washing out. Move off it as
+  // far as it needs, in whichever direction recovers chroma — then put the
+  // effective requirement under it as a floor.
   const relaxed = highestTargetKeepingChroma(ctx, idealTargetLc);
   const relaxedStep = solveAtTarget(ctx, relaxed);
 
@@ -350,7 +401,14 @@ export function solveStep(ctx: StepContext, idealTargetLc: number): SolvedStep {
     // instead: the exemption is for hues that cannot do both, not a general
     // licence to drift below AA.
     if (!meetsWcag(relaxedStep.wcagRatio, ctx.requirement)) {
-      const compliant = lowestTargetClearingWcag(ctx, relaxed, idealTargetLc, ctx.requirement);
+      // relaxed can land either side of idealTargetLc, depending on which
+      // way the chroma peak sat — order the bracket, don't assume it.
+      const compliant = lowestTargetClearingWcag(
+        ctx,
+        Math.min(relaxed, idealTargetLc),
+        Math.max(relaxed, idealTargetLc),
+        ctx.requirement,
+      );
       if (compliant !== null) {
         const compliantStep = solveAtTarget(ctx, compliant);
         if (relaxedStep.chroma - compliantStep.chroma < MIN_CONFORMANCE_SACRIFICE) {
@@ -361,7 +419,7 @@ export function solveStep(ctx: StepContext, idealTargetLc: number): SolvedStep {
     return finish(relaxed, "hue-protected");
   }
 
-  const bound = lowestTargetClearingWcag(ctx, relaxed, idealTargetLc);
+  const bound = lowestTargetClearingWcag(ctx, Math.min(relaxed, idealTargetLc), Math.max(relaxed, idealTargetLc));
   // The ideal cleared the effective requirement, so a bound always exists.
   return finish(bound ?? idealTargetLc, "wcag-bound");
 }
@@ -369,17 +427,17 @@ export function solveStep(ctx: StepContext, idealTargetLc: number): SolvedStep {
 export const VERDICT_LABELS: Record<ContrastVerdict, string> = {
   pinned: "Pinned to the seed colour",
   "apca-met": "APCA target met",
-  "hue-protected": "Eased off APCA to keep the hue",
+  "hue-protected": "Moved off APCA to keep the hue",
   "wcag-bound": "Held up by WCAG 2.2",
   "below-both": "Fails WCAG 2.2 at every lightness",
 };
 
 export const VERDICT_EXPLANATIONS: Record<ContrastVerdict, string> = {
   pinned:
-    "This is the seed colour itself, placed here because you pinned it. Everything else in this mode was solved around it. The numbers beside it are measured, not targeted — if they fall short, the pinned colour does not suit this role.",
+    "This is the seed colour itself, placed here because you pinned it. Everything else in this mode was solved around it. The numbers beside it are measured, not targeted. If they fall short, the pinned colour does not suit this role.",
   "apca-met": "Reached the profile's APCA target with the colour's chroma intact.",
   "hue-protected":
-    "Hitting the APCA target would have cost this hue too much chroma, so the target was eased off to the point where the colour still reads as itself. Still clears WCAG 2.2 for how this role is used.",
+    "Hitting the APCA target would have cost this hue too much chroma, so the target was moved (toward more contrast or less, whichever side had the colour) to the point where it still reads as itself. Still clears WCAG 2.2 for how this role is used.",
   "wcag-bound":
     "WCAG 2.2 decided this one: the colour would have kept more of its chroma at lower contrast, but that would have dropped it under the criterion for this role's usage.",
   "below-both":

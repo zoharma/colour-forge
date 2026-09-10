@@ -8,7 +8,7 @@ import { oklchToGamutSafeLinear } from "../src/color/oklch";
 import { apcaY } from "../src/color/apca";
 
 const bg = "#0e1017";
-const target = 64; // Diamond's dark `base` target
+const target = 64; // Diamond's dark background, a mid-scale APCA target
 
 /** Hit the APCA target exactly, with no hue protection: bisect lightness at
  *  the full requested chroma. This is what a pure-APCA tool produces. */

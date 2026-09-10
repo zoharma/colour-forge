@@ -26,6 +26,17 @@ type ThemeChoice = "system" | "light" | "dark";
 
 const MODES: ModeKey[] = ["light", "dark"];
 
+/** The URL uses the same names as the policy tabs, not the engine's internal
+ *  ids — a link should read like what was clicked. */
+const POLICY_SLUGS: Record<ContrastPolicy, string> = {
+  "hue-first": "more-apca",
+  "wcag-relaxed": "system-default",
+  "wcag-strict": "full-wcag",
+};
+const POLICY_FROM_SLUG: Record<string, ContrastPolicy> = Object.fromEntries(
+  Object.entries(POLICY_SLUGS).map(([policy, slug]) => [slug, policy as ContrastPolicy]),
+);
+
 /** Seed, name and profile live in the URL so a colour under discussion can be
  *  sent to someone rather than described. Everything else is local taste. */
 function readUrlState() {
@@ -34,7 +45,7 @@ function readUrlState() {
   return {
     profileId: params.get("profile") ?? DEFAULT_PROFILE_ID,
     name: params.get("name") ?? "draft",
-    policy: (params.get("policy") as ContrastPolicy | null) ?? "wcag-strict",
+    policy: POLICY_FROM_SLUG[params.get("policy") ?? ""] ?? "wcag-relaxed",
     pin: parsePin(params.get("pin")),
     // Not one of the example intents: seeding on top of one opens the tool
     // onto a wall of collisions with itself, which reads as the tool being
@@ -110,7 +121,12 @@ export function App() {
   }, [cvdView]);
 
   useEffect(() => {
-    const params = new URLSearchParams({ profile: profileId, name, seed: seedHex, policy });
+    const params = new URLSearchParams({
+      profile: profileId,
+      name,
+      seed: seedHex,
+      policy: POLICY_SLUGS[policy],
+    });
     if (pin) params.set("pin", `${pin.mode}:${pin.roleKey}`);
     window.history.replaceState(null, "", `#${params.toString()}`);
   }, [profileId, name, seedHex, policy, pin]);
@@ -205,8 +221,13 @@ export function App() {
           <p className="section-note">
             The seed's hue and chroma drive a {profile.scaleSize}-step scale solved separately for each mode.
             Each step aims at an APCA target, eases off only as far as that hue needs to stay recognisable,
-            and never drops below what WCAG 2.2 requires for how the role is used — a badge appears on any
+            and never drops below what WCAG 2.2 requires for how the role is used. A badge appears on any
             role where those disagreed.
+          </p>
+          <p className="section-note">
+            APCA targets run from Lc 45 for large or non-text elements up to Lc 75+ for body copy. WCAG 2.2
+            asks for a ratio of at least 3:1 for large text or non-text, 4.5:1 for normal body text, and 7:1
+            where AAA is required.
           </p>
 
           <div className="card">
@@ -275,23 +296,15 @@ export function App() {
             </div>
 
             <div style={{ marginTop: 16 }}>
-              <span className="field-label">Where hue and WCAG 2.2 conflict</span>
+              <span className="field-label">Accessibility type</span>
               <div className="segmented" role="group" aria-label="Contrast policy">
-                {(["wcag-strict", "wcag-relaxed", "hue-first"] as ContrastPolicy[]).map((p) => (
+                {(["hue-first", "wcag-relaxed", "wcag-strict"] as ContrastPolicy[]).map((p) => (
                   <button key={p} type="button" aria-pressed={policy === p} onClick={() => setPolicy(p)}>
                     {POLICY_LABELS[p]}
                   </button>
                 ))}
               </div>
-              <p className="policy-note">
-                {POLICY_DESCRIPTIONS[policy]}{" "}
-                {policy !== "wcag-strict" && (
-                  <strong>
-                    Only fires where the conflict is real — a hue that can meet the criterion and stay
-                    itself is unaffected.
-                  </strong>
-                )}
-              </p>
+              <p className="policy-note">{POLICY_DESCRIPTIONS[policy]}</p>
             </div>
 
             <p className="readout" style={{ marginTop: 14 }}>
@@ -321,7 +334,7 @@ export function App() {
               <div style={{ marginTop: 12 }}>
                 <ScaleTable profile={profile} draft={draft} cvdView={cvdView} />
                 <p className="foot-note">
-                  Steps no role claims are spare capacity — a chart series, a hover state, a role that does
+                  Steps no role claims are spare capacity: a chart series, a hover state, a role that does
                   not exist yet. The Full scale export has them as numbered tokens.
                 </p>
               </div>
@@ -334,9 +347,9 @@ export function App() {
           <h2 className="section-title">The family it has to live in</h2>
           <p className="section-note">
             Separation is simulated per Machado, Oliveira &amp; Fernandes (2009) at 100% severity. The floor
-            is not one number: a role that must clear a WCAG criterion is carrying meaning, so two intents
-            landing on the same colour there is a real loss — while quiet tinted surfaces sit close together
-            in every real palette, and only an outright duplicate is worth saying.
+            is not one number: a role that must clear a WCAG criterion carries meaning, so two intents
+            landing on the same colour there is a real loss. Quiet tinted surfaces sit close together in
+            every real palette, so only an outright duplicate there is worth flagging.
           </p>
           <div className="card">
             <FamilyTable

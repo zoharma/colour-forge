@@ -131,16 +131,37 @@ function contrastFindings(profile: Profile, draft: Draft): Finding[] {
       // A surface role's own foreground is where contrast failures actually
       // reach a user, and it is not covered by the role's own solve.
       if (role.needsForeground) {
+        const candidates = draft[mode].foregrounds[role.key] ?? [];
         const fg = chosenForeground(draft, mode, role.key);
-        if (fg && !meetsWcag(fg.wcagRatio, "body")) {
+        const bestWcag = candidates.reduce<(typeof candidates)[number] | undefined>(
+          (best, c) => (!best || c.wcagRatio > best.wcagRatio ? c : best),
+          undefined,
+        );
+        if (bestWcag && !meetsWcag(bestWcag.wcagRatio, "body")) {
+          // Nothing on the picker clears it — a real blocker.
           findings.push({
             id: `contrast-foreground-${mode}-${role.key}`,
             severity: "blocker",
             category: "contrast",
             mode,
             role: role.key,
-            message: `No foreground on ${role.label} reaches 4.5:1 — best is ${fg.label} at ${fg.wcagRatio.toFixed(2)}:1.`,
-            detail: `APCA Lc ${fg.lc.toFixed(0)}. Text on this surface would fail 1.4.3 AA. Adjust the surface's lightness or reserve it for large text only.`,
+            message: `No foreground on ${role.label} reaches 4.5:1 — best is ${bestWcag.label} at ${bestWcag.wcagRatio.toFixed(2)}:1.`,
+            detail: `APCA Lc ${bestWcag.lc.toFixed(0)}. Text on this surface would fail 1.4.3 AA. Adjust the surface's lightness or reserve it for large text only.`,
+          });
+        } else if (fg && bestWcag && fg !== bestWcag && !meetsWcag(fg.wcagRatio, "body")) {
+          // The recommended pick is the most legible by APCA, not the most
+          // WCAG-compliant — that is deliberate (see foregroundCandidates),
+          // but it means the default here fails 1.4.3 AA even though a
+          // conformant alternative is one click away. Worth saying, not
+          // worth blocking on.
+          findings.push({
+            id: `contrast-foreground-recommended-${mode}-${role.key}`,
+            severity: "note",
+            category: "contrast",
+            mode,
+            role: role.key,
+            message: `${role.label}'s recommended foreground (${fg.label}) reads better but fails 4.5:1 — ${bestWcag.label} clears it at ${bestWcag.wcagRatio.toFixed(2)}:1.`,
+            detail: `${fg.label} at APCA Lc ${fg.lc.toFixed(0)} vs ${bestWcag.label} at Lc ${bestWcag.lc.toFixed(0)}: WCAG's ratio and APCA disagree on which reads better here. Pick ${bestWcag.label} in the foreground picker to hold 1.4.3 AA instead.`,
           });
         }
       }
@@ -367,10 +388,22 @@ function familyFindings(profile: Profile, draft: Draft, siblings: SeededIntent[]
 /* ---------------------------------------------------------------------- */
 
 /** A scale whose steps stop getting darker (or lighter) as they go is no
- *  longer a scale. It happens where a pinned role pulls the ramp toward the
- *  background while a neighbouring step has a hard WCAG floor that will not
- *  follow it — the floor is right to hold, and the result is still worth
- *  saying out loud rather than shipping a ramp that doubles back. */
+ *  longer a scale. Two different things produce it, and both are right to
+ *  hold their ground rather than chase the ramp: a pinned role can pull a
+ *  step toward the background while a neighbour has a hard WCAG floor that
+ *  will not follow it, or hue protection can recover a hue's chroma by
+ *  moving a step *toward* more contrast — which some hues need far more of
+ *  than their curve position asks for — past where a lower-contrast
+ *  neighbour landed. Either way the fix belongs to the person, not a
+ *  silent auto-correction: the result is still worth saying out loud rather
+ *  than shipping a ramp that doubles back. */
+/** Below this Lc gap, two adjacent steps read as the same swatch. Set well
+ *  under the smallest *intentional* gap in any shipped curve (~3–4 Lc, the
+ *  compression every profile already uses near white and black) so this
+ *  never fires on a curve doing that on purpose — only on two steps that
+ *  were meant to differ and didn't. */
+const STEP_COLLAPSE_FLOOR = 2;
+
 function rampFindings(profile: Profile, draft: Draft): Finding[] {
   const findings: Finding[] = [];
 
@@ -380,19 +413,39 @@ function rampFindings(profile: Profile, draft: Draft): Finding[] {
       const previous = scale[i - 1];
       const current = scale[i];
       if (!previous || !current) continue;
-      if (Math.abs(current.lc) >= Math.abs(previous.lc) - 0.5) continue;
+
+      const gap = Math.abs(current.lc) - Math.abs(previous.lc);
+      if (gap >= STEP_COLLAPSE_FLOOR) continue;
 
       const roles = profile.roles
         .filter((r) => r.index[mode] === i || r.index[mode] === i - 1)
         .map((r) => r.label);
+      const roleSuffix = roles.length ? ` (${roles.join(", ")})` : "";
 
+      if (gap < -0.5) {
+        findings.push({
+          id: `ramp-inversion-${mode}-${i}`,
+          severity: "warning",
+          category: "contrast",
+          mode,
+          message: `Step ${displayStep(i)} has less contrast than step ${displayStep(i - 1)} — the ${mode} ramp doubles back.`,
+          detail: `${previous.hex} at Lc ${Math.abs(previous.lc).toFixed(0)}, then ${current.hex} at Lc ${Math.abs(current.lc).toFixed(0)}${roleSuffix}. Either a pinned role pulling the ramp toward the background while a neighbouring step is held out by its own WCAG floor, or hue protection recovering chroma by moving a step toward more contrast than its curve position asks for. Pin to a different role or colour, or adjust the curve for this hue.`,
+        });
+        continue;
+      }
+
+      // Order held, but the two steps landed close enough to read as one
+      // swatch. Typically both sides of a hue's chroma peak being pulled
+      // toward the same point by hue protection — the curve asked for two
+      // different lightnesses and this hue could only really deliver one.
+      if (previous.hex.toLowerCase() === current.hex.toLowerCase()) continue;
       findings.push({
-        id: `ramp-inversion-${mode}-${i}`,
-        severity: "warning",
+        id: `ramp-collapse-${mode}-${i}`,
+        severity: "note",
         category: "contrast",
         mode,
-        message: `Step ${displayStep(i)} has less contrast than step ${displayStep(i - 1)} — the ${mode} ramp doubles back.`,
-        detail: `${previous.hex} at Lc ${Math.abs(previous.lc).toFixed(0)}, then ${current.hex} at Lc ${Math.abs(current.lc).toFixed(0)}${roles.length ? ` (${roles.join(", ")})` : ""}. Usually a pinned role pulling the ramp toward the background while a neighbouring step is held out by its own WCAG floor. Pin to a different role, or to a colour closer to what this position expects.`,
+        message: `Steps ${displayStep(i - 1)} and ${displayStep(i)} look almost the same colour.`,
+        detail: `${previous.hex} at Lc ${Math.abs(previous.lc).toFixed(0)}, then ${current.hex} at Lc ${Math.abs(current.lc).toFixed(0)}${roleSuffix}. This hue's usable chroma peaks in a narrow band, and both steps were pulled toward it. Pin one of them to a colour further from the other, or accept the two positions as one visual step for this hue.`,
       });
     }
   }

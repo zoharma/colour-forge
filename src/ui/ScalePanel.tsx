@@ -92,7 +92,7 @@ export function ScalePanel({ profile, draft, mode, cvdView, foregroundOverrides,
                 <span>
                   <span className="role-name">{role.label}</span>{" "}
                   <span className="role-meta">
-                    step {displayStep(role.index[mode])} · {step.hex}
+                    · {step.hex} (step {displayStep(role.index[mode])})
                   </span>
                 </span>
                 <span className="role-badges">

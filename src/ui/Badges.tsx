@@ -42,7 +42,7 @@ export function ApcaBadge({
     return (
       <Pill
         tone="neutral"
-        title={`Target Lc ${targetLc}. APCA clips contrast this low to zero, so this step is placed by lightness rather than measured — its separation from the background is chroma, not luminance.`}
+        title={`Target Lc ${targetLc}. APCA clips contrast this low to zero, so this step is placed by lightness rather than measured. Its separation from the background is chroma, not luminance.`}
       >
         Lc &mdash;
       </Pill>
@@ -54,7 +54,7 @@ export function ApcaBadge({
   return (
     <Pill
       tone={tone}
-      title={`APCA Lc ${lc.toFixed(1)} against a target of ${targetLc} — ${metTarget ? "target met" : "eased off the target"}, ${band}.`}
+      title={`APCA Lc ${lc.toFixed(1)} against a target of ${targetLc}: ${metTarget ? "target met" : "eased off the target"}, ${band}.`}
     >
       Lc {Math.abs(lc).toFixed(0)}
     </Pill>
@@ -68,24 +68,51 @@ export function WcagBadge({ ratio, requirement }: { ratio: number; requirement: 
   const passes = requirement === "none" || ratio + 1e-9 >= { body: 4.5, large: 3, "non-text": 3, enhanced: 7, none: 0 }[requirement];
   const tone: Tone = requirement === "none" ? "neutral" : passes ? "good" : "bad";
   return (
-    <Pill tone={tone} title={`WCAG 2.2 contrast ${ratio.toFixed(2)}:1 (${level}) — required: ${WCAG_CRITERION[requirement]}`}>
+    <Pill tone={tone} title={`WCAG 2.2 contrast ${ratio.toFixed(2)}:1 (${level}). Required: ${WCAG_CRITERION[requirement]}`}>
       {ratio.toFixed(1)}:1
+    </Pill>
+  );
+}
+
+/** APCA reading for a foreground candidate. There is no per-candidate target
+ *  the way a scale step has one — a candidate is judged on the Lc it lands
+ *  at, banded the same way APCA's own guidance is: body copy needs 75+,
+ *  large or non-text text can get by on 60+/45+, below that is too weak to
+ *  read regardless of the WCAG ratio next to it. */
+export function ApcaReadingBadge({ lc }: { lc: number }) {
+  const level = apcaLevel(lc);
+  const tone: Tone = level === "body" ? "good" : level === "insufficient" ? "bad" : "warn";
+  const band = level === "insufficient" ? "below APCA's non-text guidance" : `enough for ${level}`;
+  return (
+    <Pill tone={tone} title={`APCA Lc ${lc.toFixed(1)}: ${band}.`}>
+      Lc {Math.abs(lc).toFixed(0)}
     </Pill>
   );
 }
 
 /** Which of the three measures decided this colour. The whole point of
  *  showing it is that "washed out" and "washed out for a reason" look
- *  identical in a swatch. */
+ *  identical in a swatch.
+ *
+ *  Keyed by a `Record<ContrastVerdict, …>` rather than a chain of
+ *  `verdict === …` checks, so a verdict added later without an entry here is
+ *  a type error instead of silently falling into the last `else` and
+ *  rendering as a red "fails" badge — which is exactly what happened to
+ *  `pinned` before this was a Record. */
+const VERDICT_BADGE: Record<ContrastVerdict, { tone: Tone; short: string } | null> = {
+  "apca-met": null,
+  "hue-protected": { tone: "warn", short: "hue held" },
+  "wcag-bound": { tone: "warn", short: "WCAG held" },
+  "below-both": { tone: "bad", short: "fails" },
+  pinned: { tone: "neutral", short: "pinned" },
+};
+
 export function VerdictBadge({ verdict }: { verdict: ContrastVerdict }) {
-  const tone: Tone =
-    verdict === "apca-met" ? "neutral" : verdict === "hue-protected" ? "warn" : verdict === "wcag-bound" ? "warn" : "bad";
-  const short =
-    verdict === "apca-met" ? "APCA" : verdict === "hue-protected" ? "hue held" : verdict === "wcag-bound" ? "WCAG held" : "fails";
-  if (verdict === "apca-met") return null;
+  const badge = VERDICT_BADGE[verdict];
+  if (!badge) return null;
   return (
-    <Pill tone={tone} title={`${VERDICT_LABELS[verdict]} — ${VERDICT_EXPLANATIONS[verdict]}`}>
-      {short}
+    <Pill tone={badge.tone} title={`${VERDICT_LABELS[verdict]}. ${VERDICT_EXPLANATIONS[verdict]}`}>
+      {badge.short}
     </Pill>
   );
 }

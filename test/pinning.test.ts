@@ -45,7 +45,7 @@ describe("pinning the seed to a role", () => {
     // Anchored at both ends and never collapsing two steps onto one colour.
     // A plain shift of the curve does exactly that: the pale end clamps at
     // zero and the first steps become the same colour.
-    for (const roleKey of ["fill", "text", "border", "surface"]) {
+    for (const roleKey of ["solid", "text", "container", "surface"]) {
       const draft = buildDraft(genericProfile, "x", "#2196f3", "wcag-strict", {
         mode: "light",
         roleKey,
@@ -64,10 +64,10 @@ describe("pinning the seed to a role", () => {
     const { auditDraft, draftAsIntent } = await import("../src/color/audit");
     const draft = buildDraft(genericProfile, "x", "#2196f3", "wcag-strict", {
       mode: "light",
-      roleKey: "fill",
+      roleKey: "text",
     });
     const findings = auditDraft(genericProfile, draft, [draftAsIntent(genericProfile, draft)]);
-    const inversion = findings.find((f) => f.id.startsWith("ramp-inversion-"));
+    const inversion = findings.find((f) => f.id.startsWith("ramp-inversion-light"));
     expect(inversion?.severity).toBe("warning");
     expect(inversion?.detail).toContain("WCAG floor");
   });
@@ -75,7 +75,7 @@ describe("pinning the seed to a role", () => {
   it("leaves an unpinned ramp with nothing to report", async () => {
     const { auditDraft, draftAsIntent } = await import("../src/color/audit");
     for (const profile of [genericProfile, diamondProfile]) {
-      for (const seed of ["#3f63c9", "#0a858e", "#d63c41"]) {
+      for (const seed of ["#3f63c9", "#009688", "#d63c41"]) {
         const draft = buildDraft(profile, "x", seed);
         const findings = auditDraft(profile, draft, [draftAsIntent(profile, draft)]);
         expect(

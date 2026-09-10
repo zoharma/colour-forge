@@ -1,6 +1,7 @@
 import { simulateCvdHex, type CvdView } from "../color/cvd";
 import type { ForegroundCandidate } from "../color/scale";
 import type { ModeKey, RoleDef } from "../profiles/types";
+import { ApcaReadingBadge, WcagBadge } from "./Badges";
 
 interface Props {
   mode: ModeKey;
@@ -32,14 +33,15 @@ export function ForegroundPicker({ mode, role, surfaceHex, candidates, selected,
       </legend>
       <div className="foreground-options">
         {candidates.map((candidate) => {
-          const failing = !candidate.meetsRequirement;
+          const failing = !candidate.acceptable;
+          const wcagFails = !candidate.meetsRequirement;
           return (
             <label
               key={candidate.label}
               className="foreground-option"
-              title={`${candidate.hex} on ${surfaceHex} — APCA Lc ${candidate.lc.toFixed(0)}, WCAG ${candidate.wcagRatio.toFixed(2)}:1${
-                failing ? ". Below 4.5:1 — text here would fail 1.4.3 AA." : ""
-              }`}
+              title={`${candidate.hex} on ${surfaceHex}: APCA Lc ${candidate.lc.toFixed(0)}, WCAG ${candidate.wcagRatio.toFixed(2)}:1${
+                wcagFails ? ". Below 4.5:1, so text here would fail 1.4.3 AA." : ""
+              }${failing ? " Weak by APCA, so hard to read regardless of the ratio." : ""}`}
             >
               <input
                 type="radio"
@@ -71,11 +73,14 @@ export function ForegroundPicker({ mode, role, surfaceHex, candidates, selected,
                 {candidate.label}
                 {candidate.recommended ? " ★" : ""}
               </span>
-              <span className={`pill ${failing ? "bad" : "good"} tnum`}>
-                {candidate.wcagRatio.toFixed(1)}:1
-              </span>
+              <ApcaReadingBadge lc={candidate.lc} />
+              {/* A foreground is text, so it always answers to 1.4.3's 4.5:1 —
+                  never to role.requirement, which is what the surface itself
+                  (not the text on it) has to clear. */}
+              <WcagBadge ratio={candidate.wcagRatio} requirement="body" />
               <span className="visually-hidden">
-                {failing ? "fails 4.5 to 1" : "meets 4.5 to 1"}, APCA Lc {candidate.lc.toFixed(0)}
+                {wcagFails ? "fails 4.5 to 1" : "meets 4.5 to 1"}, APCA Lc {candidate.lc.toFixed(0)}
+                {failing ? ", too weak to read here" : ""}
               </span>
             </label>
           );

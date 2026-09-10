@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { buildDraft } from "../src/color/scale";
 import { hexToOklch } from "../src/color/oklch";
+import { apcaYHex } from "../src/color/apca";
 import { MATERIAL_500 } from "../src/profiles/material";
+import { solveStep, type ContrastPolicy } from "../src/color/solver";
 import { wcagRatioHex, permittedUsage, oneLevelDown } from "../src/color/wcag";
-import type { ContrastPolicy } from "../src/color/solver";
 import { genericProfile } from "../src/profiles/generic";
 import { diamondProfile } from "../src/profiles/diamond";
 
@@ -13,11 +14,17 @@ const POLICIES: ContrastPolicy[] = ["wcag-strict", "wcag-relaxed", "hue-first"];
 /** Hues whose identity lives in a band of lightness that 4.5:1 sits outside
  *  of. Forcing conformance on these produces a brown or an olive.
  *
- *  Orange is not among them here: at exact gamut precision, Material's
- *  orange 500 reaches 4.5:1 in the generic profile's text role close enough
- *  to its ideal lightness that the 0.02-chroma exemption gate never fires.
- *  It still needs the exemption elsewhere (Diamond's `base` role in light
- *  mode) — see the README's "six hues" note, now four. */
+ *  Checked against a synthetic `body`-requirement target rather than a real
+ *  profile's `text`/`base` role: this has already been rebuilt twice as the
+ *  solver and curves improved — first a gamut-math fix changed which hues
+ *  needed the exemption, then moving `text`/`base` onto a step that stays
+ *  inside every Material hue's gamut removed the conflict from both
+ *  profiles' text roles entirely (a genuinely better outcome for those
+ *  roles, but it kept leaving this test with nothing real to check against).
+ *  A fixed synthetic context — full seed chroma, a plain light background,
+ *  `body` required — tests the exemption *mechanism* directly instead of
+ *  wherever a role happens to sit today, so a future curve or role change
+ *  can't quietly invalidate it again. */
 const CONFLICTED = [
   ["amber", "#ffc107"],
   ["lime", "#cddc39"],
@@ -34,12 +41,28 @@ const UNCONFLICTED = [
   ["teal", "#009688"],
 ] as const;
 
-const textStep = (seed: string, policy: ContrastPolicy) =>
-  buildDraft(genericProfile, "x", seed, policy).light.roles.text!;
+const BODY_TEXT_BG = "#fbfbfd";
+const BODY_TEXT_TARGET_LC = 75;
+
+const textStep = (seed: string, policy: ContrastPolicy) => {
+  const { H, C } = hexToOklch(seed);
+  return solveStep(
+    {
+      hue: H,
+      chroma: C,
+      backgroundHex: BODY_TEXT_BG,
+      backgroundY: apcaYHex(BODY_TEXT_BG),
+      backgroundIsLight: true,
+      requirement: "body",
+      policy,
+    },
+    BODY_TEXT_TARGET_LC,
+  );
+};
 
 describe("contrast policy", () => {
-  it("defaults to holding WCAG 2.2", () => {
-    expect(buildDraft(genericProfile, "x", "#ff9800").policy).toBe("wcag-strict");
+  it("defaults to a balance between APCA and WCAG 2.2, not either extreme", () => {
+    expect(buildDraft(genericProfile, "x", "#ff9800").policy).toBe("wcag-relaxed");
   });
 
   it("never returns a colour below the requirement under the strict policy", () => {
