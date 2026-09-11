@@ -4,6 +4,7 @@ import { buildDraft } from "../src/color/scale";
 import { suggestPin } from "../src/color/pin";
 import { diamondProfile } from "../src/profiles/diamond";
 import { genericProfile } from "../src/profiles/generic";
+import { PROFILES } from "../src/profiles";
 import type { ModeKey } from "../src/profiles/types";
 
 const MODES: ModeKey[] = ["light", "dark"];
@@ -45,7 +46,7 @@ describe("pinning the seed to a role", () => {
     // Anchored at both ends and never collapsing two steps onto one colour.
     // A plain shift of the curve does exactly that: the pale end clamps at
     // zero and the first steps become the same colour.
-    for (const roleKey of ["solid", "text", "container", "surface"]) {
+    for (const roleKey of ["solid", "textPrimary", "container", "surface"]) {
       const draft = buildDraft(genericProfile, "x", "#2196f3", "wcag-strict", {
         mode: "light",
         roleKey,
@@ -64,7 +65,7 @@ describe("pinning the seed to a role", () => {
     const { auditDraft, draftAsIntent } = await import("../src/color/audit");
     const draft = buildDraft(genericProfile, "x", "#2196f3", "wcag-strict", {
       mode: "light",
-      roleKey: "text",
+      roleKey: "textPrimary",
     });
     const findings = auditDraft(genericProfile, draft, [draftAsIntent(genericProfile, draft)]);
     const inversion = findings.find((f) => f.id.startsWith("ramp-inversion-light"));
@@ -74,7 +75,7 @@ describe("pinning the seed to a role", () => {
 
   it("leaves an unpinned ramp with nothing to report", async () => {
     const { auditDraft, draftAsIntent } = await import("../src/color/audit");
-    for (const profile of [genericProfile, diamondProfile]) {
+    for (const profile of PROFILES) {
       for (const seed of ["#3f63c9", "#009688", "#d63c41"]) {
         const draft = buildDraft(profile, "x", seed);
         const findings = auditDraft(profile, draft, [draftAsIntent(profile, draft)]);
@@ -92,9 +93,9 @@ describe("pinning the seed to a role", () => {
     // thing the tool can report.
     const draft = buildDraft(genericProfile, "x", "#ffeb3b", "wcag-strict", {
       mode: "light",
-      roleKey: "text",
+      roleKey: "textPrimary",
     });
-    const step = draft.light.roles.text!;
+    const step = draft.light.roles.textPrimary!;
     expect(step.hex).toBe("#ffeb3b");
     expect(step.verdict).toBe("pinned");
     expect(step.conformance).not.toBe("meets");
@@ -105,7 +106,7 @@ describe("pinning the seed to a role", () => {
     const { auditDraft, draftAsIntent } = await import("../src/color/audit");
     const draft = buildDraft(genericProfile, "x", "#ffeb3b", "wcag-strict", {
       mode: "light",
-      roleKey: "text",
+      roleKey: "textPrimary",
     });
     const findings = auditDraft(genericProfile, draft, [draftAsIntent(genericProfile, draft)]);
     const pinned = findings.find((f) => f.id.startsWith("contrast-pinned-"));
@@ -114,7 +115,7 @@ describe("pinning the seed to a role", () => {
   });
 
   it("works for every role in every mode without breaking the scale", () => {
-    for (const profile of [genericProfile, diamondProfile]) {
+    for (const profile of PROFILES) {
       for (const mode of MODES) {
         for (const role of profile.roles) {
           const draft = buildDraft(profile, "x", "#0a858e", "wcag-strict", { mode, roleKey: role.key });

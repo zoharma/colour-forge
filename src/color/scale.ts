@@ -250,6 +250,7 @@ export function foregroundCandidates(
   requirement: WcagRequirement = "body",
   policy: ContrastPolicy = "wcag-relaxed",
   role?: RoleDef,
+  shareForegroundOf?: { hex: string; label: string },
 ): ForegroundCandidate[] {
   const modeSpec = profile.modes[mode];
   const surfaceIsLight = isLightBackground(surfaceHex);
@@ -257,8 +258,9 @@ export function foregroundCandidates(
   // Named for the role this foreground is actually for — "On-surface" shown
   // as a candidate on every role's picker read as if it belonged to the
   // `surface` role specifically, even when what's being chosen is solid's
-  // or container's own foreground.
-  const roleLabel = role?.label ?? "Surface";
+  // or container's own foreground. `shareForegroundOf` overrides this to the
+  // role being borrowed from, per RoleDef.shareForegroundWith.
+  const roleLabel = shareForegroundOf?.label ?? role?.label ?? "Surface";
 
   const { H, C } = hexToOklch(seedHex);
   const baseCtx: StepContext = {
@@ -277,8 +279,23 @@ export function foregroundCandidates(
   // own extreme (step 12): this one is not the trust-APCA-or-hold-WCAG
   // split below, it is the "as much contrast as this hue can still take"
   // option regardless of policy.
+  //
+  // When `shareForegroundOf` is set, this is solved against *that* role's
+  // resolved surface instead of this role's own — so two closely related
+  // roles land on the identical candidate hex — while every candidate below
+  // is still measured against this role's own `surfaceHex`, so pass/fail
+  // stays honest for the row it is actually shown on.
   const lastTargetLc = modeSpec.targetLc[modeSpec.targetLc.length - 1] ?? 90;
-  const opposite = solveStep(baseCtx, lastTargetLc).hex;
+  const oppositeSurface = shareForegroundOf?.hex ?? surfaceHex;
+  const oppositeCtx: StepContext = shareForegroundOf
+    ? {
+        ...baseCtx,
+        backgroundHex: oppositeSurface,
+        backgroundY: apcaYHex(oppositeSurface),
+        backgroundIsLight: isLightBackground(oppositeSurface),
+      }
+    : baseCtx;
+  const opposite = solveStep(oppositeCtx, lastTargetLc).hex;
 
   // "Tinted" — a shallower tinted alternative, solved against this surface
   // specifically. How deep it goes follows the same trust-APCA-or-hold-WCAG
@@ -306,13 +323,50 @@ export function foregroundCandidates(
     tinted = solveStep({ ...baseCtx, nextTargetLc: ceiling }, Math.min(wcagTargetLc, ceiling));
   }
 
+  // A named `tintedLabel` variant (M3's `on-{intent}-fixed-variant`) needs to
+  // actually land somewhere distinct — the WCAG-ceiling logic above exists to
+  // guarantee a *legible* shallow candidate, and legible for a saturated
+  // surface often means clamping all the way to the same extreme `opposite`
+  // already reached, which is a duplicate rather than a genuine alternative.
+  // A fixed mid-scale target has no such ceiling to collapse into.
+  //
+  // `isLightBackground`'s Y > 0.4 cutoff is a heuristic, and a saturated
+  // pastel can sit just under it (read as light, measure as "dark") — the
+  // solver then only tries lightening the foreground further, clamps at
+  // white immediately, and never discovers that going dark actually works
+  // far better. Trying both directions and keeping whichever genuinely
+  // achieves more contrast sidesteps that misclassification rather than
+  // trusting it.
+  if (role?.tintedLabel) {
+    const midTargetLc = modeSpec.targetLc[6] ?? apcaTargetLc;
+    const lighterDirection = solveStep({ ...baseCtx, backgroundIsLight: false }, midTargetLc);
+    const darkerDirection = solveStep({ ...baseCtx, backgroundIsLight: true }, midTargetLc);
+    // A direction that clamped all the way to pure white/black gained
+    // nothing from aiming for a shallower, more-tinted mid-target than
+    // White/Black's own extremes — so it is worth avoiding whenever the
+    // other direction found genuine, tinted room instead, even if its own
+    // contrast is marginally lower.
+    const clamped = (hex: string) => hex === "#ffffff" || hex === "#000000";
+    if (clamped(darkerDirection.hex) !== clamped(lighterDirection.hex)) {
+      tinted = clamped(darkerDirection.hex) ? lighterDirection : darkerDirection;
+    } else {
+      tinted = Math.abs(darkerDirection.lc) >= Math.abs(lighterDirection.lc) ? darkerDirection : lighterDirection;
+    }
+  }
+
+  const excluded = new Set(profile.excludeForegroundCandidates ?? []);
   const raw = [
-    { label: "White", hex: "#ffffff" },
-    { label: "Black", hex: "#000000" },
-    { label: "Theme text", hex: modeSpec.onSurface },
-    { label: `On ${roleLabel}`, hex: opposite },
-    { label: "Tinted", hex: tinted.hex },
-  ];
+    { kind: "white", label: "White", hex: "#ffffff" },
+    { kind: "black", label: "Black", hex: "#000000" },
+    { kind: "themeText", label: "Theme text", hex: modeSpec.onSurface },
+    { kind: "onRole", label: `On ${roleLabel}`, hex: opposite },
+    { kind: "tinted", label: role?.tintedLabel ?? "Tinted", hex: tinted.hex },
+  ].filter(
+    (c) =>
+      c.kind === "onRole" ||
+      (c.kind === "tinted" && role?.tintedLabel) ||
+      !excluded.has(c.kind as "white" | "black" | "themeText" | "tinted"),
+  );
 
   // Deduplicate by resolved colour, keeping the first (most descriptive) name.
   const seen = new Set<string>();
@@ -399,8 +453,21 @@ export function buildDraft(
     const foregrounds: Record<string, ForegroundCandidate[]> = {};
     for (const role of foregroundRoles(profile)) {
       const step = roles[role.key];
-      if (step)
-        foregrounds[role.key] = foregroundCandidates(profile, mode, step.hex, seedHex, "body", policy, role);
+      if (!step) continue;
+      const sharedRole = role.shareForegroundWith ? profile.roles.find((r) => r.key === role.shareForegroundWith) : undefined;
+      const sharedStep = role.shareForegroundWith ? roles[role.shareForegroundWith] : undefined;
+      const shareForegroundOf =
+        sharedRole && sharedStep ? { hex: sharedStep.hex, label: sharedRole.label } : undefined;
+      foregrounds[role.key] = foregroundCandidates(
+        profile,
+        mode,
+        step.hex,
+        seedHex,
+        "body",
+        policy,
+        role,
+        shareForegroundOf,
+      );
     }
     return { scale, roles, foregrounds };
   };

@@ -11,6 +11,7 @@ import { auditDraft, draftAsIntent, separationRows } from "../src/color/audit";
 import { exportCss, exportJson, slugifyIntent } from "../src/color/export";
 import { diamondProfile } from "../src/profiles/diamond";
 import { genericProfile } from "../src/profiles/generic";
+import { PROFILES } from "../src/profiles";
 import { WCAG_MINIMUM } from "../src/color/wcag";
 import type { ModeKey } from "../src/profiles/types";
 
@@ -227,7 +228,7 @@ describe("solver: APCA target with a WCAG floor", () => {
 });
 
 describe("scale generation", () => {
-  for (const profile of [genericProfile, diamondProfile]) {
+  for (const profile of PROFILES) {
     describe(profile.id, () => {
       it("produces one step per scale slot in both modes", () => {
         for (const mode of MODES) {
@@ -276,7 +277,7 @@ describe("scale generation", () => {
 
 describe("scale sanity", () => {
   it("keeps the light scale strictly ordered", () => {
-    for (const profile of [genericProfile, diamondProfile]) {
+    for (const profile of PROFILES) {
       for (const mode of MODES) {
         const scale = generateScale(profile, mode, "#3f63c9");
         const lightness = scale.map((s) => hexToOklch(s.hex).L);
@@ -312,12 +313,12 @@ describe("foreground pairing", () => {
 });
 
 describe("audit", () => {
-  it("never raises a contrast blocker, at any hue, in either profile", () => {
+  it("never raises a contrast blocker, at any hue, in any profile", () => {
     // The solver's own guarantee: it either satisfies the role's WCAG
     // requirement or says it cannot. Anything else is a bug in the solver,
     // not a property of the colour.
     const { C } = hexToOklch("#3f63c9");
-    for (const profile of [genericProfile, diamondProfile]) {
+    for (const profile of PROFILES) {
       for (let hue = 0; hue < 360; hue += 15) {
         const seed = oklchToHex(0.55, C, hue);
         const draft = buildDraft(profile, "draft", seed);
@@ -401,7 +402,7 @@ describe("export", () => {
   it("uses the generic naming convention for the generic profile", () => {
     const draft = buildDraft(genericProfile, "coolant", "#0a858e");
     const css = exportCss(genericProfile, draft);
-    expect(css).toContain("--color-coolant-text:");
+    expect(css).toContain("--color-coolant-text-primary:");
     expect(css).toContain("--color-coolant-on-solid:");
   });
 
@@ -421,6 +422,6 @@ describe("export", () => {
     const draft = buildDraft(genericProfile, "coolant", "#0a858e");
     const parsed = JSON.parse(exportJson(genericProfile, draft));
     expect(parsed.intent).toBe("coolant");
-    expect(parsed.light["--color-coolant-text"].wcagRatio).toBeGreaterThanOrEqual(4.5);
+    expect(parsed.light["--color-coolant-text-primary"].wcagRatio).toBeGreaterThanOrEqual(4.5);
   });
 });

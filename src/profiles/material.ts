@@ -2,7 +2,7 @@
  *
  *  Two jobs. The 500s are seed candidates — the set most non-Diamond work
  *  starts from, so they are one click rather than a hex to look up. The MUI
- *  intents are the comparison family for the generic profile: a real, shipped
+ *  intents are the comparison family for the `mui` profile: a real, shipped
  *  palette that a lot of applications are literally using, which is a far more
  *  useful thing to check a new colour against than a set invented here.
  *
