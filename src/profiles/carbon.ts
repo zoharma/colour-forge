@@ -122,15 +122,6 @@ export const carbonProfile: Profile = {
         "The vivid, identity-carrying fill: primary buttons, status badges, filled tags. Answers to 1.4.11 at 3:1.",
     },
     {
-      key: "textSecondary",
-      label: "Text secondary",
-      index: { light: 8, dark: 8 },
-      usage: "text",
-      requirement: "large",
-      cssVar: "--cds-text-secondary-{intent}",
-      description: "Muted coloured text — captions, helper text. Answers to 1.4.3 at 3:1 (large-text threshold).",
-    },
-    {
       key: "textPrimary",
       label: "Text primary",
       index: { light: 9, dark: 9 },
@@ -138,6 +129,15 @@ export const carbonProfile: Profile = {
       requirement: "body",
       cssVar: "--cds-text-primary-{intent}",
       description: "Coloured text and icons on the page background. Answers to 1.4.3 at 4.5:1.",
+    },
+    {
+      key: "textSecondary",
+      label: "Text secondary",
+      index: { light: 8, dark: 8 },
+      usage: "text",
+      requirement: "large",
+      cssVar: "--cds-text-secondary-{intent}",
+      description: "Muted coloured text — captions, helper text. Answers to 1.4.3 at 3:1 (large-text threshold).",
     },
   ],
 
@@ -149,6 +149,8 @@ export const carbonProfile: Profile = {
    *  Carbon's own documentation treats as each hue's identity colour — except
    *  Yellow (30) and Orange (40), whose 60s read as brown rather than as the
    *  hue. Values quoted from `@carbon/colors` v11. */
+  scaleCssPrefix: "--cds",
+
   seedPaletteLabel: "Carbon colour scales",
   seedPalette: [
     { name: "Red", hex: "#da1e28" },

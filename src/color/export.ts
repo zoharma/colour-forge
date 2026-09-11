@@ -71,7 +71,7 @@ function blockFor(profile: Profile, draft: Draft, mode: ModeKey, options: Export
  *  its few named neutrals. */
 export function exportScaleCss(profile: Profile, draft: Draft, options: ExportOptions = {}): string {
   const intent = slugifyIntent(draft.name);
-  const prefix = profile.roles[0]?.cssVar.startsWith("--ds-") ? "--ds" : "--color";
+  const prefix = profile.scaleCssPrefix;
 
   const block = (mode: ModeKey) =>
     draft[mode].scale

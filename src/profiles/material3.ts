@@ -134,6 +134,10 @@ export const material3Profile: Profile = {
       needsForeground: true,
       cssVar: "--md-sys-color-{intent}",
       foregroundCssVar: "--md-sys-color-on-{intent}",
+      // Real M3 has no on-{intent}-variant paired with `base` itself — only
+      // with the fixed family (`baseDim`). It's offered here too on purpose:
+      // `base` and `baseDim` are the same real tone in dark mode (see the
+      // file docstring), so the same variant text genuinely belongs on both.
       tintedLabel: "On Base Variant",
       description: "The key colour itself: FABs, filled buttons, active icons. Answers to 1.4.11 at 3:1.",
     },
@@ -147,6 +151,8 @@ export const material3Profile: Profile = {
    *  secondary, tertiary and error — rather than Material 500, which is
    *  M2's palette. Values quoted from @material/web's reference palette,
    *  source colour #6750a4. */
+  scaleCssPrefix: "--md-sys-color",
+
   seedPaletteLabel: "M3 baseline key colours",
   seedPalette: [
     { name: "Primary", hex: "#6750a4" },

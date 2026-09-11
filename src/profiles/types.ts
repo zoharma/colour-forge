@@ -110,6 +110,12 @@ export interface Profile {
    *  these" starts from the real value rather than a hex looked up elsewhere. */
   seedPaletteLabel: string;
   seedPalette: { name: string; hex: string }[];
+  /** CSS custom property prefix used by the "Full scale" export's numbered
+   *  `{prefix}-{intent}-step-N` tokens. Explicit rather than inferred from
+   *  `roles[0].cssVar`, because a profile's roles don't always share one
+   *  prefix — Carbon's do not (`--cds-background-*`, `--cds-layer-*`,
+   *  `--cds-border-*`, ...) — so there is no single role to infer it from. */
+  scaleCssPrefix: string;
   /** Foreground candidate kinds to leave out of every role's picker for this
    *  profile. "white"/"black"/"themeText"/"tinted" only — "On {role}" is not
    *  excludable, since it is the one candidate every profile relies on.

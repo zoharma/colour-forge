@@ -111,15 +111,6 @@ export const genericProfile: Profile = {
       description: "Solid interactive surface: primary buttons, filled badges. Answers to 1.4.11 at 3:1.",
     },
     {
-      key: "textSecondary",
-      label: "Text secondary",
-      index: { light: 8, dark: 8 },
-      usage: "text",
-      requirement: "large",
-      cssVar: "--color-{intent}-text-secondary",
-      description: "Muted coloured text — captions, helper text. Answers to 1.4.3 at 3:1 (large-text threshold).",
-    },
-    {
       key: "textPrimary",
       label: "Text primary",
       index: { light: 9, dark: 9 },
@@ -127,6 +118,15 @@ export const genericProfile: Profile = {
       requirement: "body",
       cssVar: "--color-{intent}-text-primary",
       description: "Coloured text and icons on the page background. Answers to 1.4.3 at 4.5:1.",
+    },
+    {
+      key: "textSecondary",
+      label: "Text secondary",
+      index: { light: 8, dark: 8 },
+      usage: "text",
+      requirement: "large",
+      cssVar: "--color-{intent}-text-secondary",
+      description: "Muted coloured text — captions, helper text. Answers to 1.4.3 at 3:1 (large-text threshold).",
     },
   ],
 
@@ -138,6 +138,8 @@ export const genericProfile: Profile = {
    *  vendor's palette — the point of this profile is to owe nothing to a
    *  specific system. Yellow sits a touch lighter than the rest; at the same
    *  lightness as the others it reads as olive rather than yellow. */
+  scaleCssPrefix: "--color",
+
   seedPaletteLabel: "Core colours",
   seedPalette: [
     { name: "Red", hex: "#cf1717" },
