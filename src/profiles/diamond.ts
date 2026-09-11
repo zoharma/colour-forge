@@ -125,6 +125,8 @@ export const diamondProfile: Profile = {
    *  of these regenerates that intent's whole role set, which is how you check
    *  whether the curves still reproduce what Diamond actually ships — and the
    *  natural starting point for a new intent meant to sit alongside them. */
+  scaleCssPrefix: "--ds",
+
   seedPaletteLabel: "Diamond's shipped intents (light solid)",
   seedPalette: [
     { name: "primary", hex: "#3f63c9" },

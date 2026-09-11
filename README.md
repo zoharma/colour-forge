@@ -170,12 +170,54 @@ Material's 19 hues to keep any two steps from converging on the same colour.
 A profile's character comes entirely from its token names and which step
 each role claims, never from a bespoke curve.
 
-- **Generic**: six usage-named roles and `--color-{intent}-*` naming. The
-  starting point when the tool does not already know your system. Its
-  comparison family is MUI's six default intents, derived through this same
-  solver. That is a palette real applications ship, so "does my colour collide
-  with anything" is asked against something real. (MUI publishes no per-role
-  values for these roles, so those are derived here and labelled as derived.)
+- **Generic**: seven usage-named roles and `--color-{intent}-*` naming,
+  including a `textPrimary`/`textSecondary` split (4.5:1 body text and a
+  softer 3:1 large-text weight). The starting point when the tool does not
+  already know your system. Its seed palette is an evenly-spaced synthetic
+  hue wheel (red, orange, yellow, green, blue, purple, pink, grey) rather
+  than any shipped system's colours, and its comparison family is empty —
+  there is nothing real to check a fully generic palette against.
+- **MUI / Material Design 2**: MUI's own `{ light, main, dark, contrastText }`
+  palette shape and `--mui-palette-{intent}-*` naming, seeded from Material
+  500 and checked against MUI's six default intents, derived through this
+  same solver. That is a palette real applications ship, so "does my colour
+  collide with anything" is asked against something real. (MUI publishes no
+  per-role values for these roles, so those are derived here and labelled as
+  derived.) `light` and `dark` disagree about their step between light and
+  dark page mode, with `main` fixed between them: a pigment nearer white reads
+  as quiet against a light page but stands out sharply against a dark one, and
+  a pigment nearer black does the reverse.
+- **Material Design 3 (M3)**: M3's own colour-role shape and
+  `--md-sys-color-*` naming — `base`/`on-{intent}` (the key colour itself),
+  `container`/`on-{intent}-container` (a softer tonal container), and
+  `baseDim`/`on-{intent}-fixed-variant` (M3's "fixed" family, a tone
+  Google's spec keeps constant across light and dark theme, which this
+  tool's per-mode solver cannot reproduce exactly). Seeded from M3's own
+  baseline key colours (primary/secondary/tertiary/error at source colour
+  #6750a4), not Material 500, which is M2's palette. Every index was fitted
+  against `@material/web`'s real light/dark values for all four baseline
+  colours, not just reasoned about. `base` and `container` don't swap
+  between modes, unlike every other profile's container/solid pair: real M3
+  keeps its key colours prominent against the page in *both* modes on
+  purpose, and `container`'s own gap from its background stays small in
+  both, well below `base`'s gap in either. `baseDim` keeps one index across
+  both modes too, fitted to light theme's tone (which sits close to
+  `container`, not to `base`) — even though dark theme's real tone for that
+  pair happens to equal `base`'s own, that's a fact about M3's baseline
+  scheme rather than something this profile switches its index to track.
+- **IBM Carbon Design System**: role names and `--cds-{group}-{intent}`
+  naming borrow Carbon's own Layer group — `background`, `layer`,
+  `layer-accent` — plus `border` and Carbon's two text weights,
+  `textPrimary`/`textSecondary`. Carbon's real Layer/Text tokens are neutral
+  elevation tokens, not per-colour ones, so the six per-intent roles here are
+  this tool's own extrapolation onto that naming; `background`, `surface` and
+  `onSurface` themselves *are* the real neutral values, from Carbon's White
+  and g100 themes. `seedPalette` pulls one representative step from each of
+  Carbon's 10-step hue scales; `family` holds Carbon's real `interactive` and
+  `support-*` (error/success/warning/info) colours, attached to
+  `layerAccent` — the one role with a genuine per-colour precedent. `border`
+  and `layerAccent` swap which end of the scale they sit toward between light
+  and dark, the same reasoning as Diamond's `accent`/`solid`.
 - **Diamond Light Source**: the `--ds-*` role set from
   [sci-react-ui](https://github.com/DiamondLightSource/sci-react-ui), with the
   nine shipped intents loaded. `seedPalette` and `family` hold the real values

@@ -7,7 +7,8 @@ import { MATERIAL_500 } from "../src/profiles/material";
 import { solveStep, type ContrastPolicy } from "../src/color/solver";
 import { wcagRatioHex, permittedUsage, oneLevelDown } from "../src/color/wcag";
 import { genericProfile } from "../src/profiles/generic";
-import { diamondProfile } from "../src/profiles/diamond";
+import { muiProfile } from "../src/profiles/mui";
+import { PROFILES } from "../src/profiles";
 
 const POLICIES: ContrastPolicy[] = ["wcag-strict", "wcag-relaxed", "hue-first"];
 
@@ -66,7 +67,7 @@ describe("contrast policy", () => {
   });
 
   it("never returns a colour below the requirement under the strict policy", () => {
-    for (const profile of [genericProfile, diamondProfile]) {
+    for (const profile of PROFILES) {
       for (const [, seed] of [...CONFLICTED, ...UNCONFLICTED]) {
         const draft = buildDraft(profile, "x", seed, "wcag-strict");
         for (const mode of ["light", "dark"] as const) {
@@ -137,7 +138,7 @@ describe("contrast policy", () => {
   it("keeps the reported ratio honest against the real background", () => {
     for (const policy of POLICIES) {
       const draft = buildDraft(genericProfile, "x", "#ff9800", policy);
-      const step = draft.light.roles.text!;
+      const step = draft.light.roles.textPrimary!;
       expect(step.wcagRatio).toBeCloseTo(
         wcagRatioHex(step.hex, genericProfile.modes.light.background),
         6,
@@ -185,7 +186,7 @@ describe("full-scale export", () => {
 
 describe("the MUI default family", () => {
   it("carries MUI's six default intents", () => {
-    expect(genericProfile.family.map((f) => f.name)).toEqual([
+    expect(muiProfile.family.map((f) => f.name)).toEqual([
       "primary",
       "secondary",
       "error",
@@ -196,9 +197,9 @@ describe("the MUI default family", () => {
   });
 
   it("gives every intent a value for every separation role", () => {
-    for (const intent of genericProfile.family) {
+    for (const intent of muiProfile.family) {
       for (const mode of ["light", "dark"] as const) {
-        for (const role of genericProfile.separationRoles) {
+        for (const role of muiProfile.separationRoles) {
           expect(intent[mode][role], `${intent.name}/${mode}/${role}`).toMatch(/^#[0-9a-f]{6}$/);
         }
       }
@@ -206,7 +207,13 @@ describe("the MUI default family", () => {
   });
 
   it("is honest that the per-role values are derived rather than shipped", () => {
-    expect(genericProfile.provenance).toMatch(/derived by this tool/i);
+    expect(muiProfile.provenance).toMatch(/derived by this tool/i);
+  });
+});
+
+describe("the generic profile has no comparison family", () => {
+  it("ships an empty family, honestly", () => {
+    expect(genericProfile.family).toEqual([]);
   });
 });
 
@@ -223,7 +230,7 @@ describe("the exemption is never free", () => {
     // triggering the exemption it was meant to check.
     let exemptions = 0;
 
-    for (const profile of [genericProfile, diamondProfile]) {
+    for (const profile of PROFILES) {
       for (const { hex: seed } of MATERIAL_500) {
         const relaxed = buildDraft(profile, "x", seed, "hue-first");
         const strict = buildDraft(profile, "x", seed, "wcag-strict");
@@ -250,7 +257,7 @@ describe("the exemption is never free", () => {
   });
 
   it("leaves the strict policy fully conformant across the whole palette", () => {
-    for (const profile of [genericProfile, diamondProfile]) {
+    for (const profile of PROFILES) {
       for (const { hex: seed } of MATERIAL_500) {
         const draft = buildDraft(profile, "x", seed, "wcag-strict");
         for (const mode of ["light", "dark"] as const) {

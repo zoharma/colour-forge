@@ -27,6 +27,21 @@ export interface RoleDef {
   cssVar: string;
   /** CSS custom property for the paired foreground, when needsForeground. */
   foregroundCssVar?: string;
+  /** Another role's key whose "On {role}" candidate this role's picker
+   *  should offer instead of computing its own. The candidate is still
+   *  measured for contrast against this role's own resolved colour — only
+   *  the candidate's hex and label are borrowed, so two closely related
+   *  roles (M3's `base`/`baseDim`, both tones of the same key colour) can
+   *  share one paired text colour rather than each solving a slightly
+   *  different one. */
+  shareForegroundWith?: string;
+  /** Renames the generic "Tinted" candidate to this label for this role's
+   *  own picker, and shows it even when the profile's
+   *  `excludeForegroundCandidates` turns "tinted" off everywhere else — for
+   *  a role where the softer, less extreme alternative is a real, named
+   *  thing (M3's `on-{intent}-fixed-variant`) rather than this tool's
+   *  generic fallback. */
+  tintedLabel?: string;
   /** How far this role must stay from the same role on other intents, on the
    *  0–441 RGB scale under simulated colour-vision deficiency.
    *
@@ -95,6 +110,18 @@ export interface Profile {
    *  these" starts from the real value rather than a hex looked up elsewhere. */
   seedPaletteLabel: string;
   seedPalette: { name: string; hex: string }[];
+  /** CSS custom property prefix used by the "Full scale" export's numbered
+   *  `{prefix}-{intent}-step-N` tokens. Explicit rather than inferred from
+   *  `roles[0].cssVar`, because a profile's roles don't always share one
+   *  prefix — Carbon's do not (`--cds-background-*`, `--cds-layer-*`,
+   *  `--cds-border-*`, ...) — so there is no single role to infer it from. */
+  scaleCssPrefix: string;
+  /** Foreground candidate kinds to leave out of every role's picker for this
+   *  profile. "white"/"black"/"themeText"/"tinted" only — "On {role}" is not
+   *  excludable, since it is the one candidate every profile relies on.
+   *  Unset means every kind is offered, which is every other profile's
+   *  behaviour today. */
+  excludeForegroundCandidates?: ("white" | "black" | "themeText" | "tinted")[];
 }
 
 export const roleByKey = (profile: Profile, key: string): RoleDef | undefined =>
