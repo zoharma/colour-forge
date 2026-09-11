@@ -6,6 +6,50 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-11
+
+### Added
+
+- MUI / Material Design 2 profile: MUI's own `light`/`main`/`dark`/
+  `contrastText` shape and `--mui-palette-*` naming, seeded from Material 500
+  and checked against MUI's own default intents.
+- Material Design 3 (M3) profile: `base`/`container`/`baseDim` roles and
+  `--md-sys-color-*` naming, with every index fitted against
+  `@material/web`'s real light/dark values for its four baseline key
+  colours rather than just reasoned about.
+- IBM Carbon Design System profile: `background`/`layer`/`layerAccent`/
+  `border`/`textPrimary`/`textSecondary` roles and `--cds-*` naming, seeded
+  from Carbon's own colour scales and checked against its shipped
+  interactive/support colours.
+- `excludeForegroundCandidates` and `shareForegroundWith`/`tintedLabel`
+  profile and role fields, letting a profile trim the generic foreground
+  picker's fallbacks (a system with exact, defined pairings has no use for
+  "Theme text" or "Tinted") or have two closely related roles share one
+  computed foreground instead of each solving a slightly different one.
+
+### Changed
+
+- **Breaking (CSS export):** Generic's `text` role is split into
+  `textPrimary`/`textSecondary` (4.5:1 body text and a softer 3:1
+  large-text weight), same as Carbon. `--color-{intent}-text` →
+  `--color-{intent}-text-primary`.
+- Generic's seed palette is now an evenly-spaced synthetic hue wheel rather
+  than Material 500, and its comparison family is empty — that job moved to
+  the new MUI profile, which keeps the old MUI-derived seed/family.
+
+### Fixed
+
+- `exportScaleCss`'s "Full scale" export used the `--color` prefix for
+  every profile but Diamond, instead of each profile's own
+  (`--mui-palette`, `--md-sys-color`, `--cds`) — every profile now declares
+  its prefix explicitly rather than having it inferred from one role.
+- The live preview's coloured-text swatch picked whichever `text`-usage
+  role came first in a profile's role array, which was the muted
+  `textSecondary` for Generic and Carbon instead of the primary one.
+- A `shareForegroundWith` role's borrowed foreground candidate solved in
+  the wrong light/dark direction: only the shared surface's colour was
+  substituted, not its light/dark classification.
+
 ## [0.3.0] - 2026-09-10
 
 ### Changed
