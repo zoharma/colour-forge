@@ -126,10 +126,10 @@ body {
 
 /* ---------- header ---------- */
 
-/* Pinned, so the theme and colour-vision controls stay reachable while
-   reading down the page. Both change how every swatch below is rendered, and
-   scrolling back up to reach them is the thing that makes a simulation
-   toggle go unused.
+/* Pinned, so the seed colour, theme and colour-vision controls stay
+   reachable while reading down the page. All three change how every swatch
+   below is rendered, and scrolling back up to reach them is the thing that
+   makes a control go unused.
 
    Note that this is why the page has no `overflow-x: hidden` anywhere: that
    blunt fix for horizontal overflow also silently disables position:sticky in
@@ -148,15 +148,28 @@ header.top {
   margin-bottom: 20px;
 }
 
+/* The seed colour sits right beside the title rather than out with the
+   theme/CVD controls: it is the thing being designed, not a way of looking
+   at it, so it reads as part of "what this page is about" rather than part
+   of the fixed control cluster on the right. */
+header.top .header-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* One row at every width, around 42px tall. A pinned bar costs that space on
    every screen for the whole session, so the title is the part that yields:
-   it shrinks and ellipsises while the two controls keep their full size. */
+   it shrinks and ellipsises while the fixed-size controls keep their full
+   size. */
 header.top h1 {
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: -0.01em;
   margin: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -174,6 +187,28 @@ header.top h1 .version-badge {
   padding: 1px 7px;
   margin-left: 4px;
   vertical-align: middle;
+}
+
+header.top .header-seed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+/* Smaller than the input-row's colour picker and hex field: the header row
+   is fixed-height and shared with the theme and CVD controls, so this copy
+   trades a little touch target for staying inside that budget. */
+header.top .header-seed input[type="color"] {
+  width: 30px;
+  height: 30px;
+  padding: 1px;
+}
+
+header.top .header-seed input[type="text"] {
+  font-size: 0.8125rem;
+  padding: 5px 7px;
+  width: 8ch;
 }
 
 header.top .view-controls {
@@ -208,10 +243,10 @@ header.top .segmented button {
   border: 1px solid var(--line-strong);
   background: var(--panel-sunken);
   color: var(--ink);
-  /* Sized for the control, not for "Achromatopsia". The full name is spelled
-     out in the banner the moment a simulation is on, so a clipped label in
+  /* Sized for "Regular Vision", the default. The full name of whichever
+     simulation is on is spelled out in the banner, so a clipped label in
      the closed picker costs nothing and keeps the bar on one row. */
-  width: 8.5rem;
+  width: 9.5rem;
   max-width: 100%;
 }
 
@@ -270,8 +305,27 @@ header.top .segmented button {
     white-space: nowrap;
   }
 
+  /* With the title gone, the group must give up its grow so the seed
+     control and the view controls pack to the right together — otherwise
+     the now-empty title space would still claim the row and strand the
+     seed control on the left, away from everything else. */
+  header.top .header-title-group {
+    flex: 0 0 auto;
+  }
+
   header.top {
     justify-content: flex-end;
+  }
+
+  /* The typed hex field is the next thing to go once the title already has:
+     the swatch alone still opens the native picker and shows the current
+     colour, and a precise value can be typed once there is room again. */
+  header.top .header-seed input[type="text"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
 }
 

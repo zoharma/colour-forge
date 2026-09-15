@@ -12,14 +12,26 @@ import { clamp01, hexToLinear, linearToRgb255, rgb255ToHex, rgbDistanceHex } fro
 export const CVD_TYPES = ["protanopia", "deuteranopia", "tritanopia"] as const;
 export type CvdType = (typeof CVD_TYPES)[number];
 
-export type CvdView = CvdType | "none" | "achromatopsia";
+const ANOMALY_BASE = {
+  protanomaly: "protanopia",
+  deuteranomaly: "deuteranopia",
+  tritanomaly: "tritanopia",
+} as const;
+export type CvdAnomalyType = keyof typeof ANOMALY_BASE;
+export const CVD_ANOMALY_TYPES = Object.keys(ANOMALY_BASE) as CvdAnomalyType[];
+
+export type CvdView = CvdType | CvdAnomalyType | "none" | "achromatopsia" | "achromatomaly";
 
 export const CVD_LABELS: Record<CvdView, string> = {
-  none: "Normal",
+  none: "Regular Vision",
   protanopia: "Protanopia",
+  protanomaly: "Protanomaly",
   deuteranopia: "Deuteranopia",
+  deuteranomaly: "Deuteranomaly",
   tritanopia: "Tritanopia",
+  tritanomaly: "Tritanomaly",
   achromatopsia: "Achromatopsia",
+  achromatomaly: "Achromatomaly",
 };
 
 const MATRICES: Record<CvdType, number[][]> = {
@@ -40,23 +52,62 @@ const MATRICES: Record<CvdType, number[][]> = {
   ],
 };
 
-export function simulateCvdHex(hex: string, view: CvdView): string {
-  if (view === "none") return hex;
+const IDENTITY: number[][] = [
+  [1, 0, 0],
+  [0, 1, 0],
+  [0, 0, 1],
+];
 
-  const lin = hexToLinear(hex);
-  if (view === "achromatopsia") {
-    // Rod-only vision: collapse to luminance. Not a Machado matrix — the
-    // 2009 model covers the three dichromacies only.
-    const y = 0.2126 * lin.r + 0.7152 * lin.g + 0.0722 * lin.b;
-    return rgb255ToHex(linearToRgb255({ r: y, g: y, b: y }));
-  }
+/** Anomalous trichromacy is partial, not total, loss of a cone type — the
+ *  Machado paper's own severity table interpolates smoothly from identity
+ *  (0%) to the dichromat matrix (100%). We don't have their intermediate
+ *  coefficients, so we approximate by blending the dichromat transform
+ *  toward identity; 0.6 sits in the "moderate-to-strong" range reported for
+ *  anomalous trichromacy and is the severity other simulators (e.g. Coblis)
+ *  commonly use for these same labels. Achromatomaly blends the same way
+ *  toward the achromatopsia grey. */
+const ANOMALY_SEVERITY = 0.6;
 
-  const m = MATRICES[view];
+function lerpMatrix(from: number[][], to: number[][], t: number): number[][] {
+  return from.map((row, i) => row.map((v, j) => v + ((to[i]![j] as number) - v) * t));
+}
+
+const ANOMALY_MATRICES: Record<CvdAnomalyType, number[][]> = Object.fromEntries(
+  CVD_ANOMALY_TYPES.map((anomaly) => [
+    anomaly,
+    lerpMatrix(IDENTITY, MATRICES[ANOMALY_BASE[anomaly]], ANOMALY_SEVERITY),
+  ]),
+) as Record<CvdAnomalyType, number[][]>;
+
+function applyMatrix(m: number[][], lin: { r: number; g: number; b: number }) {
   const row = (i: number) => {
     const [a, b, c] = m[i] as [number, number, number];
     return clamp01(a * lin.r + b * lin.g + c * lin.b);
   };
-  return rgb255ToHex(linearToRgb255({ r: row(0), g: row(1), b: row(2) }));
+  return { r: row(0), g: row(1), b: row(2) };
+}
+
+export function simulateCvdHex(hex: string, view: CvdView): string {
+  if (view === "none") return hex;
+
+  const lin = hexToLinear(hex);
+
+  if (view === "achromatopsia" || view === "achromatomaly") {
+    // Rod-only (or partial) vision: collapse toward luminance. Not a
+    // Machado matrix — the 2009 model covers the three dichromacies only.
+    const y = 0.2126 * lin.r + 0.7152 * lin.g + 0.0722 * lin.b;
+    const t = view === "achromatopsia" ? 1 : ANOMALY_SEVERITY;
+    return rgb255ToHex(
+      linearToRgb255({
+        r: lin.r + (y - lin.r) * t,
+        g: lin.g + (y - lin.g) * t,
+        b: lin.b + (y - lin.b) * t,
+      }),
+    );
+  }
+
+  const m = view in ANOMALY_BASE ? ANOMALY_MATRICES[view as CvdAnomalyType] : MATRICES[view as CvdType];
+  return rgb255ToHex(linearToRgb255(applyMatrix(m, lin)));
 }
 
 /** Below this, two colours read as effectively the same under that

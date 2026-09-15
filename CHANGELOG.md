@@ -6,6 +6,12 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- Anomalous trichromacy views in the colour-vision simulator: Protanomaly,
+  Deuteranomaly, Tritanomaly and Achromatomaly, alongside the existing
+  dichromacy and achromatopsia views.
+
 ## [0.4.0] - 2026-09-11
 
 ### Added

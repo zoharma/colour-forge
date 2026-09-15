@@ -183,10 +183,35 @@ export function App() {
             keeping it in the bar would pin a couple of hundred pixels of
             prose on a phone. */}
         <header className="top">
-          <h1>
-            Colour Forge <span className="version-badge">v{__APP_VERSION__}</span>
-          </h1>
+          <div className="header-title-group">
+            <h1>
+              Colour Forge <span className="version-badge">v{__APP_VERSION__}</span>
+            </h1>
+            <div className="header-seed">
+              <label className="visually-hidden" htmlFor="hex-header">
+                Seed colour
+              </label>
+              <input
+                type="color"
+                value={seedHex}
+                aria-label="Seed colour picker"
+                onChange={(e) => commitHex(e.target.value)}
+              />
+              <input
+                id="hex-header"
+                type="text"
+                size={9}
+                value={hexDraft}
+                onChange={(e) => setHexDraft(e.target.value)}
+                onBlur={(e) => commitHex(e.target.value.trim())}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitHex(e.currentTarget.value.trim());
+                }}
+              />
+            </div>
+          </div>
           <div className="view-controls">
+            <CvdControl view={cvdView} onChange={setCvdView} />
             <div className="segmented" role="group" aria-label="Page theme">
               {(["system", "light", "dark"] as ThemeChoice[]).map((choice) => (
                 <button
@@ -199,7 +224,6 @@ export function App() {
                 </button>
               ))}
             </div>
-            <CvdControl view={cvdView} onChange={setCvdView} />
           </div>
         </header>
 
