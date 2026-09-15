@@ -6,6 +6,8 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-15
+
 ### Added
 
 - Anomalous trichromacy views in the colour-vision simulator: Protanomaly,
