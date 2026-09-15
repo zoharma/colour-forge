@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { apcaHex, apcaLevel, targetYForLc, apcaYHex, apcaFromY } from "../src/color/apca";
 import { wcagRatioHex, wcagLevel, meetsWcag } from "../src/color/wcag";
 import { hexToOklch, oklchToHex, hueDelta } from "../src/color/oklch";
-import { hexToRgb255, rgb255ToHex, normaliseHex, isValidHex } from "../src/color/srgb";
+import { hexToRgb255, rgb255ToHex, normaliseHex, isValidHex, rgbDistanceHex } from "../src/color/srgb";
 import { simulateCvdHex, worstCvdSeparation } from "../src/color/cvd";
 import { solveStep, CHROMA_RETENTION_FLOOR, type StepContext } from "../src/color/solver";
 import { buildDraft, generateScale, foregroundCandidates } from "../src/color/scale";
@@ -137,6 +137,33 @@ describe("CVD simulation", () => {
     const grey = hexToRgb255(simulateCvdHex("#d63c41", "achromatopsia"));
     expect(grey.r).toBe(grey.g);
     expect(grey.g).toBe(grey.b);
+  });
+
+  it.each([
+    ["protanomaly", "protanopia"],
+    ["deuteranomaly", "deuteranopia"],
+    ["tritanomaly", "tritanopia"],
+  ] as const)("shifts %s toward its seed colour but less far than %s", (anomaly, dichromacy) => {
+    const seed = "#d63c41";
+    const anomalyDistance = rgbDistanceHex(seed, simulateCvdHex(seed, anomaly));
+    const dichromacyDistance = rgbDistanceHex(seed, simulateCvdHex(seed, dichromacy));
+    // An anomalous trichromat keeps some function of the affected cone, so
+    // the shift from the true colour must be smaller than full dichromacy —
+    // never zero (that would just be "none") and never as large.
+    expect(anomalyDistance).toBeGreaterThan(0);
+    expect(anomalyDistance).toBeLessThan(dichromacyDistance);
+  });
+
+  it("desaturates achromatomaly toward grey without fully collapsing it", () => {
+    const seed = "#d63c41";
+    const original = hexToRgb255(seed);
+    const partial = hexToRgb255(simulateCvdHex(seed, "achromatomaly"));
+    const originalSpread = Math.abs(original.r - original.b);
+    const partialSpread = Math.abs(partial.r - partial.b);
+    // Full achromatopsia collapses r/g/b to one value (spread 0); achromatomaly
+    // should land strictly between that and the untouched colour.
+    expect(partialSpread).toBeGreaterThan(0);
+    expect(partialSpread).toBeLessThan(originalSpread);
   });
 });
 

@@ -6,6 +6,19 @@ All notable changes to this project are documented here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- Anomalous trichromacy views in the colour-vision simulator: Protanomaly,
+  Deuteranomaly, Tritanomaly and Achromatomaly.
+- The seed colour picker also sits in the pinned header now, next to the
+  title.
+
+### Changed
+
+- Colour-vision picker: "Normal" relabelled "Regular Vision", anomalies
+  now listed before their full counterpart, and header order swapped to
+  colour-vision picker before theme picker.
+
 ## [0.4.0] - 2026-09-11
 
 ### Added
