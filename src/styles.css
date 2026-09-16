@@ -21,7 +21,8 @@
   --bad-bg: #fbe2e0;
   --focus: #1f3d78;
 
-  --font-ui: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-ui:
+    "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   --radius: 10px;
@@ -182,6 +183,12 @@ header.top h1 {
   white-space: nowrap;
 }
 
+header.top h1 .title-icon {
+  vertical-align: -3px;
+  margin-right: 2px;
+  color: var(--accent);
+}
+
 header.top h1 .version-badge {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
@@ -214,7 +221,7 @@ header.top .header-seed input[type="color"] {
 header.top .header-seed input[type="text"] {
   font-size: 0.8125rem;
   padding: 5px 7px;
-  width: 8ch;
+  width: 10ch;
 }
 
 header.top .view-controls {
@@ -244,7 +251,8 @@ header.top .segmented button {
 .view-select {
   font-family: var(--font-mono);
   font-size: 0.75rem;
-  padding: 4px 8px;
+  padding: 0 8px;
+  height: 34px;
   border-radius: 7px;
   border: 1px solid var(--line-strong);
   background: var(--panel-sunken);
@@ -273,6 +281,9 @@ header.top .segmented button {
 }
 
 .segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   border: none;
   background: transparent;
   color: var(--muted);
@@ -280,6 +291,10 @@ header.top .segmented button {
   border-radius: 5px;
   cursor: pointer;
   font: inherit;
+}
+
+.segmented button svg {
+  flex: 0 0 auto;
 }
 
 .segmented button[aria-pressed="true"] {
@@ -410,7 +425,8 @@ header.top .segmented button {
 
   .view-select {
     font-size: 0.68rem;
-    padding: 4px 5px;
+    padding: 0 5px;
+    height: 32px;
     /* The row is nowrap now, so the select carries the slack: at 320px the
        full 7.5rem put the bar 2px over the viewport. */
     width: 6.25rem;
@@ -478,19 +494,18 @@ details.advanced > summary {
   gap: 8px;
 }
 
-details.advanced > summary::-webkit-details-marker {
+details.advanced > summary::-webkit-details-marker,
+details.advanced > summary::marker {
   display: none;
 }
 
-details.advanced > summary::before {
-  content: "▸";
-  display: inline-block;
-  font-size: 0.7em;
+details.advanced > summary .advanced-chevron {
+  flex: 0 0 auto;
   color: var(--muted);
   transition: transform 0.15s ease;
 }
 
-details.advanced[open] > summary::before {
+details.advanced[open] > summary .advanced-chevron {
   transform: rotate(90deg);
 }
 
@@ -602,6 +617,10 @@ input[type="color"] {
 }
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   font-family: var(--font-ui);
   font-size: 0.8125rem;
   font-weight: 500;

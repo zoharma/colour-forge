@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { GripVertical, X } from "lucide-react";
 
 import { simulateCvdHex, type CvdView } from "../color/cvd";
 import { isValidHex, normaliseHex } from "../color/srgb";
@@ -159,7 +160,7 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
                           }}
                           onKeyDown={(e) => onHandleKeyDown(e, index)}
                         >
-                          <span aria-hidden="true">⠿</span>
+                          <GripVertical size={14} aria-hidden="true" />
                         </button>
                       )}
                       {isDraft ? (
@@ -218,7 +219,7 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
                         aria-label={`Remove ${intent.name}`}
                         onClick={() => onChange(family.filter((_, i) => i !== index))}
                       >
-                        ✕
+                        <X size={12} aria-hidden="true" />
                       </button>
                     )}
                   </td>

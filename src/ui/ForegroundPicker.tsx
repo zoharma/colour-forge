@@ -1,3 +1,5 @@
+import { Star } from "lucide-react";
+
 import { simulateCvdHex, type CvdView } from "../color/cvd";
 import type { ForegroundCandidate } from "../color/scale";
 import type { ModeKey, RoleDef } from "../profiles/types";
@@ -69,9 +71,16 @@ export function ForegroundPicker({ mode, role, surfaceHex, candidates, selected,
               >
                 A
               </span>
-              <span style={{ textDecoration: failing ? "line-through" : undefined }}>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 3,
+                  textDecoration: failing ? "line-through" : undefined,
+                }}
+              >
                 {candidate.label}
-                {candidate.recommended ? " ★" : ""}
+                {candidate.recommended && <Star size={11} fill="currentColor" aria-hidden="true" />}
               </span>
               <ApcaReadingBadge lc={candidate.lc} />
               {/* A foreground is text, so it always answers to 1.4.3's 4.5:1 —
@@ -79,6 +88,7 @@ export function ForegroundPicker({ mode, role, surfaceHex, candidates, selected,
                   (not the text on it) has to clear. */}
               <WcagBadge ratio={candidate.wcagRatio} requirement="body" />
               <span className="visually-hidden">
+                {candidate.recommended ? "recommended, " : ""}
                 {wcagFails ? "fails 4.5 to 1" : "meets 4.5 to 1"}, APCA Lc {candidate.lc.toFixed(0)}
                 {failing ? ", too weak to read here" : ""}
               </span>

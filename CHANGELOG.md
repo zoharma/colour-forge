@@ -4,6 +4,23 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.2] - 2026-09-16
+
+### Changed
+
+- Adopted `lucide-react` for every icon in the UI: the family-table drag
+  handle and remove button, the recommended-foreground star, and the
+  "Advanced" disclosure chevrons now use real icons instead of text
+  glyphs, and the theme toggle (system/light/dark) got matching ones.
+- Added a matching icon next to the "Colour Forge" title and as the
+  favicon.
+- The colour-vision-deficiency dropdown now matches the height of the
+  theme toggle tabs beside it.
+
+### Fixed
+
+- The seed hex value in the pinned header was clipped by one character.
+
 ## [0.5.1] - 2026-09-16
 
 ### Changed

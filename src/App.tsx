@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronRight, Monitor, Moon, Sun, SwatchBook } from "lucide-react";
 
 import { auditDraft, draftAsIntent, separationRows } from "./color/audit";
 import type { CvdView } from "./color/cvd";
@@ -23,6 +24,8 @@ import { SeedPicker } from "./ui/SeedPicker";
 import { SeparationTable } from "./ui/SeparationTable";
 
 type ThemeChoice = "system" | "light" | "dark";
+
+const THEME_ICONS: Record<ThemeChoice, typeof Monitor> = { system: Monitor, light: Sun, dark: Moon };
 
 const MODES: ModeKey[] = ["light", "dark"];
 
@@ -185,7 +188,8 @@ export function App() {
         <header className="top">
           <div className="header-title-group">
             <h1>
-              Colour Forge <span className="version-badge">v{__APP_VERSION__}</span>
+              <SwatchBook className="title-icon" size={24} aria-hidden="true" /> Colour Forge{" "}
+              <span className="version-badge">v{__APP_VERSION__}</span>
             </h1>
             <div className="header-seed">
               <label className="visually-hidden" htmlFor="hex-header">
@@ -213,16 +217,20 @@ export function App() {
           <div className="view-controls">
             <CvdControl view={cvdView} onChange={setCvdView} />
             <div className="segmented" role="group" aria-label="Page theme">
-              {(["system", "light", "dark"] as ThemeChoice[]).map((choice) => (
-                <button
-                  key={choice}
-                  type="button"
-                  aria-pressed={theme === choice}
-                  onClick={() => setTheme(choice)}
-                >
-                  {choice}
-                </button>
-              ))}
+              {(["system", "light", "dark"] as ThemeChoice[]).map((choice) => {
+                const Icon = THEME_ICONS[choice];
+                return (
+                  <button
+                    key={choice}
+                    type="button"
+                    aria-pressed={theme === choice}
+                    onClick={() => setTheme(choice)}
+                  >
+                    <Icon size={13} aria-hidden="true" />
+                    {choice}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </header>
@@ -255,7 +263,10 @@ export function App() {
           </p>
 
           <details className="advanced">
-            <summary>How the target contrast is chosen</summary>
+            <summary>
+              <ChevronRight className="advanced-chevron" size={14} aria-hidden="true" />
+              How the target contrast is chosen
+            </summary>
             <div className="advanced-body">
               <p className="section-note" style={{ marginTop: 12 }}>
                 The seed's hue and chroma drive a {profile.scaleSize}-step scale solved separately for each
@@ -345,7 +356,10 @@ export function App() {
             </div>
 
             <details className="advanced" style={{ marginTop: 18 }}>
-              <summary>Advanced: seed placement &amp; raw values</summary>
+              <summary>
+                <ChevronRight className="advanced-chevron" size={14} aria-hidden="true" />
+                Advanced: seed placement &amp; raw values
+              </summary>
               <div className="advanced-body">
                 <div style={{ marginTop: 14 }}>
                   <span className="field-label">Seed placement</span>
@@ -380,7 +394,10 @@ export function App() {
               open={showScale}
               onToggle={(e) => setShowScale(e.currentTarget.open)}
             >
-              <summary>Advanced: all {profile.scaleSize} steps with hex values</summary>
+              <summary>
+                <ChevronRight className="advanced-chevron" size={14} aria-hidden="true" />
+                Advanced: all {profile.scaleSize} steps with hex values
+              </summary>
               <div className="advanced-body">
                 <div style={{ marginTop: 12 }}>
                   <ScaleTable profile={profile} draft={draft} cvdView={cvdView} />
@@ -403,7 +420,10 @@ export function App() {
           </p>
 
           <details className="advanced">
-            <summary>How separation is measured</summary>
+            <summary>
+              <ChevronRight className="advanced-chevron" size={14} aria-hidden="true" />
+              How separation is measured
+            </summary>
             <div className="advanced-body">
               <p className="section-note" style={{ marginTop: 12, marginBottom: 0 }}>
                 Separation is simulated per Machado, Oliveira &amp; Fernandes (2009) at 100% severity. The
@@ -425,7 +445,10 @@ export function App() {
               onSnapshot={snapshotDraft}
             />
             <details className="advanced" style={{ marginTop: 18 }}>
-              <summary>Advanced: pairwise separation numbers</summary>
+              <summary>
+                <ChevronRight className="advanced-chevron" size={14} aria-hidden="true" />
+                Advanced: pairwise separation numbers
+              </summary>
               <div className="advanced-body">
                 <div style={{ marginTop: 14 }}>
                   <SeparationTable rows={rows} />
