@@ -227,96 +227,109 @@ export function App() {
           </div>
         </header>
 
-        <p className="intro">
-          Turn one colour into a full role set, tuned independently for light and dark, then check it
-          against APCA, WCAG 2.2 and colour-vision deficiency before it reaches a token file.
-        </p>
-
-        {cvdView !== "none" && (
-          <p className="banner" aria-live="polite">
-            <strong>Simulating {CVD_LABELS[cvdView].toLowerCase()}.</strong> {CVD_NOTES[cvdView]} Every
-            number on the page is still measured from the real colours. Only what you see is simulated.
+        {cvdView !== "none" ? (
+          <div className="intro-row">
+            <p className="intro">
+              Turn one colour into a full role set, tuned independently for light and dark, then check
+              it against APCA, WCAG 2.2 and colour-vision deficiency before it reaches a token file.
+            </p>
+            <p className="banner" aria-live="polite">
+              <strong>Simulating {CVD_LABELS[cvdView].toLowerCase()}.</strong> {CVD_NOTES[cvdView]} Every
+              number on the page is still measured from the real colours. Only what you see is
+              simulated.
+            </p>
+          </div>
+        ) : (
+          <p className="intro">
+            Turn one colour into a full role set, tuned independently for light and dark, then check it
+            against APCA, WCAG 2.2 and colour-vision deficiency before it reaches a token file.
           </p>
         )}
 
         <section>
-          <p className="eyebrow">Input</p>
+          <p className="eyebrow">1 · Input</p>
           <h2 className="section-title">Design a colour</h2>
           <p className="section-note">
-            The seed's hue and chroma drive a {profile.scaleSize}-step scale solved separately for each mode.
-            Each step aims at an APCA target, eases off only as far as that hue needs to stay recognisable,
-            and never drops below what WCAG 2.2 requires for how the role is used. A badge appears on any
-            role where those disagreed.
-          </p>
-          <p className="section-note">
-            APCA targets run from Lc 45 for large or non-text elements up to Lc 75+ for body copy. WCAG 2.2
-            asks for a ratio of at least 3:1 for large text or non-text, 4.5:1 for normal body text, and 7:1
-            where AAA is required.
+            Pick a design system and a seed colour below. Colour Forge solves a full light- and dark-mode
+            role set from it, then checks every role against APCA, WCAG 2.2 and colour-vision deficiency.
           </p>
 
-          <div className="card">
-            <div className="input-row">
-              <div>
-                <label className="field-label" htmlFor="profile">
-                  Design system
-                </label>
-                <select id="profile" value={profileId} onChange={(e) => setProfileId(e.target.value)}>
-                  {PROFILES.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          <details className="advanced">
+            <summary>How the target contrast is chosen</summary>
+            <div className="advanced-body">
+              <p className="section-note" style={{ marginTop: 12 }}>
+                The seed's hue and chroma drive a {profile.scaleSize}-step scale solved separately for each
+                mode. Each step aims at an APCA target, eases off only as far as that hue needs to stay
+                recognisable, and never drops below what WCAG 2.2 requires for how the role is used. A badge
+                appears on any role where those disagreed.
+              </p>
+              <p className="section-note" style={{ marginBottom: 0 }}>
+                APCA targets run from Lc 45 for large or non-text elements up to Lc 75+ for body copy. WCAG
+                2.2 asks for a ratio of at least 3:1 for large text or non-text, 4.5:1 for normal body text,
+                and 7:1 where AAA is required.
+              </p>
+            </div>
+          </details>
 
-              <div>
-                <label className="field-label" htmlFor="intent-name">
-                  Intent name
-                </label>
-                <input
-                  id="intent-name"
-                  type="text"
-                  value={name}
-                  style={{ fontFamily: "var(--font-ui)", width: "14ch" }}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </div>
+          <div className="card" style={{ marginTop: 18 }}>
+            <div className="setup-grid">
+              <div className="input-row">
+                <div>
+                  <label className="field-label" htmlFor="hex">
+                    Seed colour
+                  </label>
+                  <div className="hex-input-group">
+                    <input
+                      type="color"
+                      value={seedHex}
+                      aria-label="Seed colour picker"
+                      onChange={(e) => commitHex(e.target.value)}
+                    />
+                    <input
+                      id="hex"
+                      type="text"
+                      size={9}
+                      value={hexDraft}
+                      onChange={(e) => setHexDraft(e.target.value)}
+                      onBlur={(e) => commitHex(e.target.value.trim())}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitHex(e.currentTarget.value.trim());
+                      }}
+                    />
+                  </div>
+                </div>
 
-              <div>
-                <label className="field-label" htmlFor="hex">
-                  Seed colour
-                </label>
-                <div className="hex-input-group">
+                <div>
+                  <label className="field-label" htmlFor="intent-name">
+                    Intent name
+                  </label>
                   <input
-                    type="color"
-                    value={seedHex}
-                    aria-label="Seed colour picker"
-                    onChange={(e) => commitHex(e.target.value)}
-                  />
-                  <input
-                    id="hex"
+                    id="intent-name"
                     type="text"
-                    size={9}
-                    value={hexDraft}
-                    onChange={(e) => setHexDraft(e.target.value)}
-                    onBlur={(e) => commitHex(e.target.value.trim())}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") commitHex(e.currentTarget.value.trim());
-                    }}
+                    value={name}
+                    style={{ fontFamily: "var(--font-ui)", width: "14ch" }}
+                    onChange={(e) => setName(e.target.value)}
                   />
                 </div>
               </div>
 
-            </div>
+              <div className="seed-quickpicks">
+                <div style={{ marginBottom: 16 }}>
+                  <label className="field-label" htmlFor="profile">
+                    Design system
+                  </label>
+                  <select id="profile" value={profileId} onChange={(e) => setProfileId(e.target.value)}>
+                    {PROFILES.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            <div style={{ marginTop: 16 }}>
-              <span className="field-label">{profile.seedPaletteLabel} — one-click seeds</span>
-              <SeedPicker profile={profile} seedHex={seedHex} cvdView={cvdView} onPick={commitHex} />
-            </div>
-
-            <div style={{ marginTop: 16 }}>
-              <span className="field-label">Seed placement</span>
-              <PinControl profile={profile} pin={pin} suggestion={pinSuggestion} onChange={setPin} />
+                <span className="field-label">One-click seeds: {profile.seedPaletteLabel}</span>
+                <SeedPicker profile={profile} seedHex={seedHex} cvdView={cvdView} onPick={commitHex} />
+              </div>
             </div>
 
             <div style={{ marginTop: 16 }}>
@@ -331,11 +344,21 @@ export function App() {
               <p className="policy-note">{POLICY_DESCRIPTIONS[policy]}</p>
             </div>
 
-            <p className="readout" style={{ marginTop: 14 }}>
-              OKLCH <b>L</b> {o.L.toFixed(3)} <b>C</b> {o.C.toFixed(3)} <b>H</b> {o.H.toFixed(1)}°
-            </p>
+            <details className="advanced" style={{ marginTop: 18 }}>
+              <summary>Advanced: seed placement &amp; raw values</summary>
+              <div className="advanced-body">
+                <div style={{ marginTop: 14 }}>
+                  <span className="field-label">Seed placement</span>
+                  <PinControl profile={profile} pin={pin} suggestion={pinSuggestion} onChange={setPin} />
+                </div>
 
-            <p className="foot-note">{profile.provenance}</p>
+                <p className="readout" style={{ marginTop: 14 }}>
+                  OKLCH <b>L</b> {o.L.toFixed(3)} <b>C</b> {o.C.toFixed(3)} <b>H</b> {o.H.toFixed(1)}°
+                </p>
+
+                <p className="foot-note">{profile.provenance}</p>
+              </div>
+            </details>
 
             <div className="mode-columns" id="roles" style={{ scrollMarginTop: 76 }}>
               {MODES.map((mode) => (
@@ -351,31 +374,47 @@ export function App() {
               ))}
             </div>
 
-            <details style={{ marginTop: 18 }} open={showScale} onToggle={(e) => setShowScale(e.currentTarget.open)}>
-              <summary style={{ cursor: "pointer", fontSize: "0.8125rem" }}>
-                All {profile.scaleSize} steps with hex values
-              </summary>
-              <div style={{ marginTop: 12 }}>
-                <ScaleTable profile={profile} draft={draft} cvdView={cvdView} />
-                <p className="foot-note">
-                  Steps no role claims are spare capacity: a chart series, a hover state, a role that does
-                  not exist yet. The Full scale export has them as numbered tokens.
-                </p>
+            <details
+              className="advanced"
+              style={{ marginTop: 18 }}
+              open={showScale}
+              onToggle={(e) => setShowScale(e.currentTarget.open)}
+            >
+              <summary>Advanced: all {profile.scaleSize} steps with hex values</summary>
+              <div className="advanced-body">
+                <div style={{ marginTop: 12 }}>
+                  <ScaleTable profile={profile} draft={draft} cvdView={cvdView} />
+                  <p className="foot-note">
+                    Steps no role claims are spare capacity: a chart series, a hover state, a role that does
+                    not exist yet. The Full scale export has them as numbered tokens.
+                  </p>
+                </div>
               </div>
             </details>
           </div>
         </section>
 
         <section>
-          <p className="eyebrow">Cross-check</p>
+          <p className="eyebrow">2 · Cross-check</p>
           <h2 className="section-title">The family it has to live in</h2>
           <p className="section-note">
-            Separation is simulated per Machado, Oliveira &amp; Fernandes (2009) at 100% severity. The floor
-            is not one number: a role that must clear a WCAG criterion carries meaning, so two intents
-            landing on the same colour there is a real loss. Quiet tinted surfaces sit close together in
-            every real palette, so only an outright duplicate there is worth flagging.
+            Checks the new colour against the design system's other intents under simulated colour-vision
+            deficiency, so two roles that only differ by hue don't quietly collapse into each other.
           </p>
-          <div className="card">
+
+          <details className="advanced">
+            <summary>How separation is measured</summary>
+            <div className="advanced-body">
+              <p className="section-note" style={{ marginTop: 12, marginBottom: 0 }}>
+                Separation is simulated per Machado, Oliveira &amp; Fernandes (2009) at 100% severity. The
+                floor is not one number: a role that must clear a WCAG criterion carries meaning, so two
+                intents landing on the same colour there is a real loss. Quiet tinted surfaces sit close
+                together in every real palette, so only an outright duplicate there is worth flagging.
+              </p>
+            </div>
+          </details>
+
+          <div className="card" style={{ marginTop: 18 }}>
             <FamilyTable
               profile={profile}
               family={familyWithDraft}
@@ -385,14 +424,19 @@ export function App() {
               onReset={() => setFamily(profile.family)}
               onSnapshot={snapshotDraft}
             />
-            <div style={{ marginTop: 18 }}>
-              <SeparationTable rows={rows} />
-            </div>
+            <details className="advanced" style={{ marginTop: 18 }}>
+              <summary>Advanced: pairwise separation numbers</summary>
+              <div className="advanced-body">
+                <div style={{ marginTop: 14 }}>
+                  <SeparationTable rows={rows} />
+                </div>
+              </div>
+            </details>
           </div>
         </section>
 
         <section>
-          <p className="eyebrow">Verdict</p>
+          <p className="eyebrow">3 · Verdict</p>
           <h2 className="section-title">What the checks found</h2>
           <p className="section-note">
             A measuring tool, not an optimiser. A sweep that only maximises separation reliably breaks
@@ -405,7 +449,7 @@ export function App() {
         </section>
 
         <section>
-          <p className="eyebrow">Output</p>
+          <p className="eyebrow">4 · Output</p>
           <h2 className="section-title">Tokens</h2>
           <p className="section-note">
             In {profile.name}'s own naming convention, for this intent only.

@@ -4,7 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.5.1] - 2026-09-16
+
+### Changed
+
+- Layout pass for readability and first-time use: slightly larger type
+  throughout, a wider page on large screens, numbered sections (1 Input,
+  2 Cross-check, 3 Verdict, 4 Output), and power-user detail — seed
+  pinning, raw OKLCH values, profile provenance, the full contrast-model
+  rationale, and the pairwise separation table — moved into collapsed
+  "Advanced" disclosures. No behaviour or calculation changed.
 
 ## [0.5.0] - 2026-09-15
 

@@ -78,13 +78,19 @@
   box-sizing: border-box;
 }
 
+/* Bumps every rem-based size in the page by the same ~6%, so "slightly
+   bigger text" is one number instead of a pass over every rule. */
+html {
+  font-size: 17px;
+}
+
 body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-ui);
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: 1rem;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -119,9 +125,9 @@ body {
 }
 
 .shell {
-  max-width: 1180px;
+  max-width: 1360px;
   margin: 0 auto;
-  padding: 28px 24px 96px;
+  padding: 28px 32px 96px;
 }
 
 /* ---------- header ---------- */
@@ -285,8 +291,58 @@ header.top .segmented button {
 .intro {
   margin: 0 0 24px;
   color: var(--muted);
-  font-size: 0.875rem;
-  max-width: 64ch;
+  font-size: 0.95rem;
+  max-width: 68ch;
+}
+
+/* The CVD banner sits beside the intro instead of sharing a grid row with
+   it, which would size the row to its tallest cell — and since the banner's
+   text (a full colour-vision note) usually runs longer than the two-line
+   intro, that pushed everything below down to clear the banner even though
+   the intro itself needed less.
+
+   Both float, on opposite sides, rather than only the banner: a lone float
+   placed *after* the intro paragraph in source order gets pushed below the
+   intro's own box instead of sitting beside it (a float never rises above
+   an earlier in-flow block) — floating the intro too removes it from that
+   rule, so the two sit at the same top. `clear: left` on the row then
+   follows only the intro's (left) float for the row's own height, leaving
+   the banner (right) free to run taller without dragging the row — or
+   anything after it — down with it. Because the banner is a genuine float
+   rather than a layer on top, if it *does* run past the row's bottom, later
+   text safely wraps around it instead of ever being covered by it, unlike
+   an absolutely-positioned box would. */
+.intro-row {
+  margin-bottom: 24px;
+}
+
+.intro-row::after {
+  content: "";
+  display: table;
+  clear: left;
+}
+
+.intro-row .intro {
+  float: left;
+  margin: 0;
+}
+
+.intro-row .banner {
+  float: right;
+  width: min(360px, 38%);
+  margin: 0 0 12px 28px;
+}
+
+@media (max-width: 860px) {
+  .intro-row .intro,
+  .intro-row .banner {
+    float: none;
+    width: auto;
+  }
+
+  .intro-row .banner {
+    margin: 14px 0 0;
+  }
 }
 
 /* The two controls need a fixed 270px, and the title wants 108px more than
@@ -364,13 +420,13 @@ header.top .segmented button {
 /* ---------- sections ---------- */
 
 section {
-  margin-bottom: 36px;
+  margin-bottom: 48px;
   /* Clear the pinned header, or an anchored jump lands underneath it. */
   scroll-margin-top: 76px;
 }
 
 .eyebrow {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -379,15 +435,15 @@ section {
 }
 
 h2.section-title {
-  font-size: 1.05rem;
+  font-size: 1.3rem;
   font-weight: 600;
-  margin: 0 0 4px;
+  margin: 0 0 6px;
 }
 
 .section-note {
   color: var(--muted);
-  font-size: 0.8125rem;
-  max-width: 78ch;
+  font-size: 0.9rem;
+  max-width: 80ch;
   margin: 0 0 16px;
 }
 
@@ -395,7 +451,58 @@ h2.section-title {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 18px 20px;
+  padding: 24px 28px;
+}
+
+/* ---------- advanced disclosures ----------
+   A shared look for the settings and detail most people can leave alone the
+   first time through: seed pinning, raw OKLCH/measurement numbers, the full
+   contrast-model rationale, pairwise separation figures. Closed by default;
+   nothing inside one is unique to it, so hiding it costs nothing. */
+
+details.advanced {
+  margin-top: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-sunken);
+}
+
+details.advanced > summary {
+  cursor: pointer;
+  padding: 10px 14px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+details.advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.advanced > summary::before {
+  content: "▸";
+  display: inline-block;
+  font-size: 0.7em;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+details.advanced[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+details.advanced > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  border-radius: 5px;
+}
+
+details.advanced .advanced-body {
+  padding: 2px 16px 18px;
+  border-top: 1px solid var(--line);
 }
 
 .flex-between {
@@ -407,6 +514,28 @@ h2.section-title {
 }
 
 /* ---------- controls ---------- */
+
+/* Puts the typed/picked seed controls beside the one-click swatch palette
+   instead of stacking them, so a wide screen is doing something with its
+   width other than leaving the card mostly empty next to a narrow form. */
+.setup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(240px, 0.85fr);
+  gap: 28px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .setup-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.seed-quickpicks {
+  /* Same baseline as the input-row fields beside it, so the swatch grid's
+     label lines up with the field labels rather than sitting lower. */
+  padding-top: 1px;
+}
 
 .input-row {
   display: flex;
@@ -499,7 +628,7 @@ input[type="color"] {
 
 .readout {
   font-family: var(--font-mono);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   color: var(--ink-soft);
 }
 
@@ -509,7 +638,7 @@ input[type="color"] {
 }
 
 .foot-note {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--muted);
   margin: 8px 0 0;
 }
@@ -548,7 +677,7 @@ input[type="color"] {
 .mode-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 24px;
   margin-top: 20px;
 }
 
@@ -610,7 +739,7 @@ input[type="color"] {
   grid-template-columns: 22px 1fr auto;
   align-items: center;
   gap: 10px;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .role-row .chip {
@@ -643,7 +772,7 @@ input[type="color"] {
 table {
   border-collapse: collapse;
   width: 100%;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 th,
@@ -861,8 +990,8 @@ textarea.output {
   border: 1px solid var(--line-strong);
   background: var(--panel-sunken);
   border-radius: var(--radius-sm);
-  padding: 8px 12px;
-  font-size: 0.78rem;
+  padding: 10px 14px;
+  font-size: 0.85rem;
   color: var(--ink-soft);
   margin-bottom: 14px;
 }
@@ -872,13 +1001,13 @@ textarea.output {
 .seed-picker {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
+  gap: 6px;
 }
 
 .seed-swatch {
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
   border: 1px solid rgb(0 0 0 / 0.2);
   cursor: pointer;
   padding: 0;
@@ -890,7 +1019,7 @@ textarea.output {
 }
 
 .policy-note {
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   color: var(--ink-soft);
   margin: 8px 0 0;
   max-width: 72ch;
