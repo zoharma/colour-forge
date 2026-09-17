@@ -5,11 +5,26 @@
  *  text on a dark background. Most call sites want the magnitude, but the
  *  sign is what tells you a pairing has flipped polarity, so it is kept. */
 
-import { clamp01, hexToLinear, type Rgb } from "./srgb";
+import { clamp01, hexToRgb255, linearToRgb255, type Rgb } from "./srgb";
 
 const SRCO = 0.2126729;
 const SGCO = 0.7151522;
 const SBCO = 0.072175;
+
+/** APCA-W3 linearises sRGB with a plain c^2.4 power curve — no piecewise
+ *  linear toe below 0.04045, unlike the real sRGB EOTF that srgb.ts uses for
+ *  everything else (OKLCH, CVD simulation, WCAG luminance). Reusing that EOTF
+ *  here quietly disagrees with the reference implementation through the
+ *  midtones: #777777 on white measures Lc ~71.1 by APCA's own curve, not the
+ *  ~67.8 the piecewise curve gives. Black and white are unaffected (0 and 1
+ *  map identically under both), which is why endpoint-only tests miss this. */
+const apcaGammaChannel = (c255: number): number => (c255 / 255) ** 2.4;
+
+const apcaLinearFromRgb255 = (rgb: Rgb): Rgb => ({
+  r: apcaGammaChannel(rgb.r),
+  g: apcaGammaChannel(rgb.g),
+  b: apcaGammaChannel(rgb.b),
+});
 
 const NORM_BG = 0.56;
 const NORM_TXT = 0.57;
@@ -25,9 +40,19 @@ const LO_WOB_OFFSET = 0.027;
 const LO_CLIP = 0.1;
 const DELTA_Y_MIN = 0.0005;
 
+/** Expects channels already linearised APCA's own way — either via
+ *  `apcaYHex` or `apcaYFromLinearSrgb`, never the raw output of
+ *  `hexToLinear`/`oklchToGamutSafeLinear`, which use the real sRGB EOTF. */
 export const apcaY = (lin: Rgb): number => SRCO * lin.r + SGCO * lin.g + SBCO * lin.b;
 
-export const apcaYHex = (hex: string): number => apcaY(hexToLinear(hex));
+export const apcaYHex = (hex: string): number => apcaY(apcaLinearFromRgb255(hexToRgb255(hex)));
+
+/** Bridges physically-linear sRGB (from `hexToLinear` or an OKLab gamut
+ *  mapping, both real-EOTF) into APCA's measure: re-encode to sRGB-255, then
+ *  decode again with APCA's own c^2.4 curve. Needed anywhere a candidate
+ *  colour is produced from linear-light maths rather than typed in as hex —
+ *  the solver's bisection loop, chiefly. */
+export const apcaYFromLinearSrgb = (lin: Rgb): number => apcaY(apcaLinearFromRgb255(linearToRgb255(lin)));
 
 const softClamp = (y: number): number => (y > BLK_THRS ? y : y + (BLK_THRS - y) ** BLK_CLMP);
 

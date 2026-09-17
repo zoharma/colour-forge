@@ -150,8 +150,8 @@ export function App() {
   }, [profile, draft, family]);
 
   const findings = useMemo(
-    () => auditDraft(profile, draft, familyWithDraft),
-    [profile, draft, familyWithDraft],
+    () => auditDraft(profile, draft, familyWithDraft, foregroundOverrides),
+    [profile, draft, familyWithDraft, foregroundOverrides],
   );
   const rows = useMemo(() => separationRows(profile, familyWithDraft), [profile, familyWithDraft]);
 
@@ -165,11 +165,20 @@ export function App() {
   const setForeground = (mode: ModeKey, roleKey: string, label: string) =>
     setForegroundOverrides((prev) => ({ ...prev, [mode]: { ...prev[mode], [roleKey]: label } }));
 
+  // The live draft always occupies `asIntent.name` in familyWithDraft (see
+  // above), so a frozen copy saved under that same name would be filtered
+  // straight back out the moment it's added — it has to get a distinct name
+  // even when nothing in `family` yet collides with the bare one.
   const snapshotDraft = () => {
     const asIntent = draftAsIntent(profile, draft);
-    let candidate = asIntent.name;
-    for (let n = 2; family.some((f) => f.name === candidate); n++) candidate = `${asIntent.name}-${n}`;
+    let n = 2;
+    let candidate = `${asIntent.name}-${n}`;
+    while (family.some((f) => f.name === candidate)) {
+      n += 1;
+      candidate = `${asIntent.name}-${n}`;
+    }
     setFamily([...family, { ...asIntent, name: candidate }]);
+    return candidate;
   };
 
   const o = draft.seedOklch;
