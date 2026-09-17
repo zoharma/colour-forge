@@ -4,6 +4,27 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.3] - 2026-09-17
+
+### Fixed
+
+- APCA measurements (and everything the solver derives from them) were
+  computed with the real piecewise sRGB EOTF instead of APCA-W3's own plain
+  `c^2.4` linearisation — a divergence invisible at black/white but real
+  through the midtones (`#777777` on white measured Lc 67.8 instead of the
+  reference 71.1). Affected every reported Lc, the solver's generated
+  colours, and the verdict each step gets.
+- The verdict, and CSS/JSON export, now audit the foreground actually
+  selected for a role (including a manual override) rather than only the
+  tool's own recommendation — selecting a foreground that fails 4.5:1 no
+  longer reports zero blockers, and a failing foreground now gets an
+  explicit warning comment in the CSS export, not just the JSON's `verdict`
+  field.
+- "Freeze draft as an intent" silently did nothing: the frozen copy was
+  always saved under the same name the live draft uses, so it was filtered
+  back out of the comparison set the moment it was added. It now gets a
+  distinct name and an announced confirmation.
+
 ## [0.5.2] - 2026-09-16
 
 ### Changed

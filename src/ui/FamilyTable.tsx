@@ -12,7 +12,10 @@ interface Props {
   cvdView: CvdView;
   onChange: (family: SeededIntent[]) => void;
   onReset: () => void;
-  onSnapshot: () => void;
+  /** Returns the name the frozen copy was saved under, so this table can
+   *  confirm it — the freeze is otherwise silent, and the comparison table
+   *  growing by one row at the bottom is easy to miss. */
+  onSnapshot: () => string;
 }
 
 /** The intents a new colour has to live alongside. Editable, because the
@@ -88,7 +91,11 @@ export function FamilyTable({ profile, family, draftName, cvdView, onChange, onR
           <b>{family.length}</b> intent{family.length === 1 ? "" : "s"} in the comparison set
         </span>
         <span style={{ display: "flex", gap: 8 }}>
-          <button className="btn ghost" type="button" onClick={onSnapshot}>
+          <button
+            className="btn ghost"
+            type="button"
+            onClick={() => setAnnouncement(`Draft frozen as ${onSnapshot()}.`)}
+          >
             Freeze draft as an intent
           </button>
           <button className="btn ghost" type="button" onClick={onReset}>
