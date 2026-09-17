@@ -2,10 +2,9 @@ import { it } from "vitest";
 import { expect } from "vitest";
 import { solveStep } from "../src/color/solver";
 import { hexToOklch, oklchToHex } from "../src/color/oklch";
-import { apcaYHex, targetYForLc } from "../src/color/apca";
+import { apcaYFromLinearSrgb, apcaYHex, targetYForLc } from "../src/color/apca";
 import { wcagRatioHex } from "../src/color/wcag";
 import { oklchToGamutSafeLinear } from "../src/color/oklch";
-import { apcaY } from "../src/color/apca";
 
 const bg = "#0e1017";
 const target = 64; // Diamond's dark background, a mid-scale APCA target
@@ -17,7 +16,7 @@ function pureApca(H: number, C: number) {
   let lo = 0, hi = 1, L = 0.5;
   for (let i = 0; i < 28; i++) {
     L = (lo + hi) / 2;
-    if (apcaY(oklchToGamutSafeLinear(L, C, H).lin) > targetY) hi = L; else lo = L;
+    if (apcaYFromLinearSrgb(oklchToGamutSafeLinear(L, C, H).lin) > targetY) hi = L; else lo = L;
   }
   return oklchToHex(L, C, H);
 }

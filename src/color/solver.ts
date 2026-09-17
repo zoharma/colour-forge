@@ -14,7 +14,7 @@
  *  reports which of those three things decided it, so the compromise is
  *  visible instead of buried in a constant. */
 
-import { apcaFromY, apcaY, targetYForLc } from "./apca";
+import { apcaFromY, apcaYFromLinearSrgb, targetYForLc } from "./apca";
 import { oklchToGamutSafeLinear } from "./oklch";
 import { linearToRgb255, rgb255ToHex } from "./srgb";
 import { meetsWcag, oneLevelDown, wcagRatioHex, type WcagRequirement } from "./wcag";
@@ -206,7 +206,7 @@ function solveAtTarget(
   for (let i = 0; i < BISECTION_STEPS; i++) {
     L = (lo + hi) / 2;
     const { lin } = oklchToGamutSafeLinear(L, ctx.chroma, ctx.hue);
-    if (apcaY(lin) > targetY) hi = L;
+    if (apcaYFromLinearSrgb(lin) > targetY) hi = L;
     else lo = L;
   }
 
@@ -218,7 +218,7 @@ function solveAtTarget(
     chroma: chromaUsed,
     hue: ctx.hue,
     chromaRetention: ctx.chroma > 0 ? chromaUsed / ctx.chroma : 1,
-    lc: apcaFromY(apcaY(lin), ctx.backgroundY),
+    lc: apcaFromY(apcaYFromLinearSrgb(lin), ctx.backgroundY),
     wcagRatio: wcagRatioHex(hex, ctx.backgroundHex),
     requirement: ctx.requirement,
     effectiveRequirement: effectiveRequirement(ctx.requirement, ctx.policy),

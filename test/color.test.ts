@@ -47,6 +47,27 @@ describe("APCA", () => {
     expect(apcaHex("#ffffff", "#000000")).toBeCloseTo(-107.88, 1);
   });
 
+  // APCA linearises sRGB with a plain c^2.4 power curve, not the piecewise
+  // real-sRGB EOTF (linear toe below 0.04045) used elsewhere in this codebase
+  // for OKLCH/CVD/WCAG — a distinction the black/white pair above can't catch
+  // since 0 and 1 map identically under both curves. Reference values below
+  // computed from the APCA-W3 formula directly (same constants as apca.ts),
+  // not read off this implementation, so a regression to the piecewise curve
+  // would fail these.
+  it("matches the reference curve through the midtones, not the piecewise sRGB EOTF", () => {
+    expect(apcaHex("#777777", "#ffffff")).toBeCloseTo(71.11, 1);
+    expect(apcaHex("#ffffff", "#777777")).toBeCloseTo(-76.58, 1);
+  });
+
+  it("matches the reference curve for saturated hues, both polarities", () => {
+    expect(apcaHex("#0000ff", "#ffffff")).toBeCloseTo(85.82, 1);
+    expect(apcaHex("#ffffff", "#0000ff")).toBeCloseTo(-90.65, 1);
+    expect(apcaHex("#008000", "#ffffff")).toBeCloseTo(74.62, 1);
+    expect(apcaHex("#ffffff", "#008000")).toBeCloseTo(-80.02, 1);
+    expect(apcaHex("#111111", "#e0b040")).toBeCloseTo(64.45, 1);
+    expect(apcaHex("#e0b040", "#111111")).toBeCloseTo(-63.07, 1);
+  });
+
   it("signs dark-on-light positive and light-on-dark negative", () => {
     expect(apcaHex("#111111", "#eeeeee")).toBeGreaterThan(0);
     expect(apcaHex("#eeeeee", "#111111")).toBeLessThan(0);
@@ -363,8 +384,21 @@ describe("foreground pairing", () => {
   });
 });
 
+// A role's own default foreground is picked by an APCA-first heuristic
+// (`foregroundStrategy`), deliberately trusting legibility over the WCAG
+// ratio wherever the role has its own contrast requirement — see the comment
+// on `foregroundStrategy` in scale.ts. That trade means the *default*
+// foreground frequently fails 4.5:1 even though a compliant alternative is
+// one click away in the picker, same as `contrast-below-aa` for a role's own
+// colour: a deliberate choice, still surfaced as a blocker because it is a
+// decision that has to reach whoever implements it. It is not the solver
+// failing to find a working colour, so the two invariants below (which are
+// about the solver's own guarantee for a role's colour against its
+// background) exclude it deliberately rather than by coincidence.
+const isForegroundDefaultFinding = (id: string): boolean => id.startsWith("contrast-foreground-selected-");
+
 describe("audit", () => {
-  it("never raises a contrast blocker, at any hue, in any profile", () => {
+  it("never raises an unaddressed contrast blocker, at any hue, in any profile", () => {
     // The solver's own guarantee: it either satisfies the role's WCAG
     // requirement or says it cannot. Anything else is a bug in the solver,
     // not a property of the colour.
@@ -375,7 +409,7 @@ describe("audit", () => {
         const draft = buildDraft(profile, "draft", seed);
         const family = [...profile.family, draftAsIntent(profile, draft)];
         const contrastBlockers = auditDraft(profile, draft, family).filter(
-          (f) => f.severity === "blocker" && f.category === "contrast",
+          (f) => f.severity === "blocker" && f.category === "contrast" && !isForegroundDefaultFinding(f.id),
         );
         expect(contrastBlockers.map((f) => `${seed} ${f.message}`)).toEqual([]);
       }
@@ -384,11 +418,36 @@ describe("audit", () => {
 
   it("clears a colour that collides with nothing in the family", () => {
     // A magenta, in the one part of the wheel Diamond's nine intents leave
-    // free. Nothing to flag, so nothing should be flagged.
+    // free. Nothing to flag, so nothing should be flagged, besides whatever
+    // the default foreground heuristic always surfaces for this profile
+    // regardless of hue (see isForegroundDefaultFinding above).
     const draft = buildDraft(diamondProfile, "draft", "#a4479e");
     const family = [...diamondProfile.family, draftAsIntent(diamondProfile, draft)];
-    const blockers = auditDraft(diamondProfile, draft, family).filter((f) => f.severity === "blocker");
+    const blockers = auditDraft(diamondProfile, draft, family).filter(
+      (f) => f.severity === "blocker" && !isForegroundDefaultFinding(f.id),
+    );
     expect(blockers.map((b) => b.message)).toEqual([]);
+  });
+
+  it("blocks on the foreground actually selected, not just the tool's own recommendation", () => {
+    // The bug this guards against: a person overrides a role's foreground to
+    // something that fails 4.5:1, and the audit — evaluated only against
+    // `chosenForeground`'s no-argument (recommended) result — reports zero
+    // blockers even though preview and export both show the failing pick.
+    const draft = buildDraft(diamondProfile, "draft", "#3f63c9");
+    const family = [...diamondProfile.family, draftAsIntent(diamondProfile, draft)];
+    const role = diamondProfile.roles.find((r) => r.needsForeground);
+    if (!role) throw new Error("expected at least one foreground-needing role for this test to mean anything");
+    const candidates = draft.light.foregrounds[role.key] ?? [];
+    const failing = candidates.find((c) => !c.meetsRequirement);
+    if (!failing) return; // this profile/seed combination has no failing candidate to override to
+    const overrides = { light: { [role.key]: failing.label } };
+    const findings = auditDraft(diamondProfile, draft, family, overrides);
+    const selectedBlocker = findings.find(
+      (f) => f.severity === "blocker" && f.mode === "light" && f.role === role.key,
+    );
+    expect(selectedBlocker).toBeDefined();
+    expect(selectedBlocker!.message).toContain(failing.label);
   });
 
   it("does not treat two quiet tinted surfaces sitting close as a failure", () => {

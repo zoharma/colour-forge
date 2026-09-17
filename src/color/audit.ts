@@ -50,7 +50,9 @@ const CONTAINER_VISIBILITY_FLOOR = 0.015;
 
 /* ---------------------------------------------------------------------- */
 
-function contrastFindings(profile: Profile, draft: Draft): Finding[] {
+type ForegroundOverrides = Partial<Record<ModeKey, Record<string, string>>>;
+
+function contrastFindings(profile: Profile, draft: Draft, foregroundOverrides?: ForegroundOverrides): Finding[] {
   const findings: Finding[] = [];
 
   for (const mode of MODES) {
@@ -129,10 +131,15 @@ function contrastFindings(profile: Profile, draft: Draft): Finding[] {
       }
 
       // A surface role's own foreground is where contrast failures actually
-      // reach a user, and it is not covered by the role's own solve.
+      // reach a user, and it is not covered by the role's own solve. Audited
+      // against the colour actually selected — the override if the person
+      // picked one, otherwise whatever chosenForeground would resolve to for
+      // preview and export — never against the recommendation alone, or a
+      // failing manual pick would ship with zero findings against it.
       if (role.needsForeground) {
         const candidates = draft[mode].foregrounds[role.key] ?? [];
-        const fg = chosenForeground(draft, mode, role.key);
+        const override = foregroundOverrides?.[mode]?.[role.key];
+        const selected = chosenForeground(draft, mode, role.key, override);
         const bestWcag = candidates.reduce<(typeof candidates)[number] | undefined>(
           (best, c) => (!best || c.wcagRatio > best.wcagRatio ? c : best),
           undefined,
@@ -148,20 +155,19 @@ function contrastFindings(profile: Profile, draft: Draft): Finding[] {
             message: `No foreground on ${role.label} reaches 4.5:1 — best is ${bestWcag.label} at ${bestWcag.wcagRatio.toFixed(2)}:1.`,
             detail: `APCA Lc ${bestWcag.lc.toFixed(0)}. Text on this surface would fail 1.4.3 AA. Adjust the surface's lightness or reserve it for large text only.`,
           });
-        } else if (fg && bestWcag && fg !== bestWcag && !meetsWcag(fg.wcagRatio, "body")) {
-          // The recommended pick is the most legible by APCA, not the most
-          // WCAG-compliant — that is deliberate (see foregroundCandidates),
-          // but it means the default here fails 1.4.3 AA even though a
-          // conformant alternative is one click away. Worth saying, not
-          // worth blocking on.
+        } else if (selected && bestWcag && !meetsWcag(selected.wcagRatio, "body")) {
+          // A compliant candidate exists, but it is not the one that will
+          // actually ship in preview and export — that is a blocker
+          // regardless of whether it is the tool's own default or a manual
+          // override, since 1.4.3 AA is failing right now, not hypothetically.
           findings.push({
-            id: `contrast-foreground-recommended-${mode}-${role.key}`,
-            severity: "note",
+            id: `contrast-foreground-selected-${mode}-${role.key}`,
+            severity: "blocker",
             category: "contrast",
             mode,
             role: role.key,
-            message: `${role.label}'s recommended foreground (${fg.label}) reads better but fails 4.5:1 — ${bestWcag.label} clears it at ${bestWcag.wcagRatio.toFixed(2)}:1.`,
-            detail: `${fg.label} at APCA Lc ${fg.lc.toFixed(0)} vs ${bestWcag.label} at Lc ${bestWcag.lc.toFixed(0)}: WCAG's ratio and APCA disagree on which reads better here. Pick ${bestWcag.label} in the foreground picker to hold 1.4.3 AA instead.`,
+            message: `${role.label}'s selected foreground (${selected.label}) fails 4.5:1 at ${selected.wcagRatio.toFixed(2)}:1 — ${bestWcag.label} clears it at ${bestWcag.wcagRatio.toFixed(2)}:1.`,
+            detail: `APCA Lc ${selected.lc.toFixed(0)} vs ${bestWcag.label} at Lc ${bestWcag.lc.toFixed(0)}. This is the foreground preview and export actually use for ${role.label}; it fails 1.4.3 AA as selected. Pick ${bestWcag.label} in the foreground picker, or adjust the surface's lightness.`,
           });
         }
       }
@@ -500,10 +506,15 @@ function visibilityFindings(profile: Profile, draft: Draft): Finding[] {
 
 /* ---------------------------------------------------------------------- */
 
-export function auditDraft(profile: Profile, draft: Draft, family: SeededIntent[]): Finding[] {
+export function auditDraft(
+  profile: Profile,
+  draft: Draft,
+  family: SeededIntent[],
+  foregroundOverrides?: ForegroundOverrides,
+): Finding[] {
   const siblings = family.filter((f) => f.name !== draft.name);
   return [
-    ...contrastFindings(profile, draft),
+    ...contrastFindings(profile, draft, foregroundOverrides),
     ...cvdFindings(profile, family, draft.name),
     ...familyFindings(profile, draft, siblings),
     ...visibilityFindings(profile, draft),

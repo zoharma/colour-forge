@@ -51,9 +51,16 @@ function blockFor(profile: Profile, draft: Draft, mode: ModeKey, options: Export
       const override = options.foregroundOverrides?.[mode]?.[role.key];
       const fg = chosenForeground(draft, mode, role.key, override);
       if (fg) {
+        // Whether or not measurements were asked for: a foreground that
+        // fails 4.5:1 is a decision that has to survive the paste into a
+        // token file, same as a below-AA surface colour above.
+        const fgFails = fg.meetsRequirement
+          ? ""
+          : `  /* Fails 4.5:1 (WCAG) at ${fg.wcagRatio.toFixed(2)}:1 against ${substitute(role.cssVar, intent)} — 1.4.3 AA. */\n`;
         const fgComment = options.includeMeasurements
           ? `  /* APCA Lc ${fg.lc.toFixed(0)}, WCAG ${fg.wcagRatio.toFixed(2)}:1 vs ${substitute(role.cssVar, intent)} */\n`
           : "";
+        lines.push(...(fgFails ? [fgFails.trimEnd()] : []));
         lines.push(`${fgComment}  ${substitute(role.foregroundCssVar, intent)}: ${fg.hex};`);
       }
     }
