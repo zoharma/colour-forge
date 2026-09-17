@@ -4,7 +4,12 @@ import { apcaHex, apcaLevel, targetYForLc, apcaYHex, apcaFromY } from "../src/co
 import { wcagRatioHex, wcagLevel, meetsWcag } from "../src/color/wcag";
 import { hexToOklch, oklchToHex, hueDelta } from "../src/color/oklch";
 import { hexToRgb255, rgb255ToHex, normaliseHex, isValidHex, rgbDistanceHex } from "../src/color/srgb";
-import { simulateCvdHex, worstCvdSeparation } from "../src/color/cvd";
+import {
+  CVD_SEPARATION_COMFORTABLE,
+  CVD_SEPARATION_FLOOR,
+  simulateCvdHex,
+  worstCvdSeparation,
+} from "../src/color/cvd";
 import { solveStep, CHROMA_RETENTION_FLOOR, type StepContext } from "../src/color/solver";
 import { buildDraft, generateScale, foregroundCandidates } from "../src/color/scale";
 import { auditDraft, draftAsIntent, separationRows } from "../src/color/audit";
@@ -144,20 +149,39 @@ describe("CVD simulation", () => {
   });
 
   it("collapses red and green under deuteranopia", () => {
-    const separation = worstCvdSeparation("#1b8834", "#d63c41");
-    // These two are a legible pair to normal vision and famously not to a
-    // deuteranope — the check exists precisely to catch this.
-    expect(separation.value).toBeLessThan(60);
+    // Lightness- and chroma-matched to the red, since it's specifically a
+    // same-luminance red/green pair that a deuteranope can't fall back on
+    // brightness to tell apart — a green picked at a different lightness (as
+    // an earlier version of this test did) can still separate on luminance
+    // alone and no longer demonstrates the collapse this test is for.
+    const { L, C } = hexToOklch("#d63c41");
+    const green = oklchToHex(L, C, 145);
+    const separation = worstCvdSeparation("#d63c41", green);
+    expect(separation.type).toBe("deuteranopia");
+    expect(separation.value).toBeLessThan(CVD_SEPARATION_FLOOR);
   });
 
   it("keeps blue and orange apart under all three deficiencies", () => {
-    expect(worstCvdSeparation("#3f63c9", "#e97b12").value).toBeGreaterThan(60);
+    expect(worstCvdSeparation("#3f63c9", "#e97b12").value).toBeGreaterThan(CVD_SEPARATION_COMFORTABLE * 5);
   });
 
   it("reduces achromatopsia to a grey", () => {
     const grey = hexToRgb255(simulateCvdHex("#d63c41", "achromatopsia"));
     expect(grey.r).toBe(grey.g);
     expect(grey.g).toBe(grey.b);
+  });
+
+  it("matches Machado (2010)'s own published severity-0.6 matrices, not a naive blend toward identity", () => {
+    // Reference values reproduced from the colour-science library's
+    // CVD_MATRICES_MACHADO2010 dataset (which cites Machado 2010 directly),
+    // applied by hand to a pure primary. A naive lerp from identity to the
+    // 100%-severity dichromat matrix — this file's previous approximation —
+    // gives visibly different hexes for the same inputs (e.g. #ba4a00, not
+    // #a75900, for protanomaly of pure red), so this only passes against the
+    // real published intermediate coefficients.
+    expect(simulateCvdHex("#ff0000", "protanomaly")).toBe("#a75900");
+    expect(simulateCvdHex("#00ff00", "deuteranomaly")).toBe("#d6e131");
+    expect(simulateCvdHex("#0000ff", "tritanomaly")).toBe("#0046d7");
   });
 
   it.each([
