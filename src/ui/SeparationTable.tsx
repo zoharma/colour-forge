@@ -51,12 +51,12 @@ export function SeparationTable({ rows }: { rows: SeparationRow[] }) {
                   <span className="readout">({row.worst.type})</span>
                 </td>
                 <td>
-                  <span className={`pill ${tone} tnum`}>{row.worst.value.toFixed(1)}</span>
+                  <span className={`pill ${tone} tnum`}>{row.worst.value.toFixed(3)}</span>
                 </td>
-                <td className="readout tnum">{row.floor}</td>
+                <td className="readout tnum">{row.floor.toFixed(3)}</td>
                 <td className="readout">
                   {others.length
-                    ? others.map((p) => `${p.a}/${p.b} (${p.value.toFixed(0)})`).join(", ")
+                    ? others.map((p) => `${p.a}/${p.b} (${p.value.toFixed(3)})`).join(", ")
                     : "—"}
                 </td>
               </tr>

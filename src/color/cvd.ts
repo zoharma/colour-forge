@@ -7,7 +7,8 @@
  *  each other to a deuteranope, which is how a red/green status pair
  *  gets shipped. */
 
-import { clamp01, hexToLinear, linearToRgb255, rgb255ToHex, rgbDistanceHex } from "./srgb";
+import { linearToOklab } from "./oklch";
+import { clamp01, hexToLinear, linearToRgb255, rgb255ToHex } from "./srgb";
 
 export const CVD_TYPES = ["protanopia", "deuteranopia", "tritanopia"] as const;
 export type CvdType = (typeof CVD_TYPES)[number];
@@ -52,32 +53,41 @@ const MATRICES: Record<CvdType, number[][]> = {
   ],
 };
 
-const IDENTITY: number[][] = [
-  [1, 0, 0],
-  [0, 1, 0],
-  [0, 0, 1],
-];
-
-/** Anomalous trichromacy is partial, not total, loss of a cone type — the
- *  Machado paper's own severity table interpolates smoothly from identity
- *  (0%) to the dichromat matrix (100%). We don't have their intermediate
- *  coefficients, so we approximate by blending the dichromat transform
- *  toward identity; 0.6 sits in the "moderate-to-strong" range reported for
- *  anomalous trichromacy and is the severity other simulators (e.g. Coblis)
- *  commonly use for these same labels. Achromatomaly blends the same way
- *  toward the achromatopsia grey. */
+/** Anomalous trichromacy is partial, not total, loss of a cone type. Machado,
+ *  Oliveira & Fernandes (2009) — the same model `MATRICES` above are the
+ *  100%-severity case of — publish the intermediate matrices directly rather
+ *  than as a curve to interpolate: their physiologically-based model does not
+ *  vary linearly between identity and the dichromat transform (tritanomaly's
+ *  own coefficients are non-monotonic partway through the range), so blending
+ *  toward identity by eye — as this file used to, before this table replaced
+ *  it — is a different, less accurate curve than the one actually measured.
+ *  These are their published severity-0.6 matrices (0.6 sits in the
+ *  "moderate-to-strong" range reported for anomalous trichromacy and is the
+ *  severity other simulators, e.g. Coblis, commonly use for these labels),
+ *  reproduced from the colour-science library's `CVD_MATRICES_MACHADO2010`
+ *  dataset, which cites Machado (2010) directly. Achromatomaly has no
+ *  equivalent published table — the 2009 model covers the three dichromacies
+ *  and their anomalous forms only — so it stays a severity-blended luminance
+ *  collapse below. */
 const ANOMALY_SEVERITY = 0.6;
 
-function lerpMatrix(from: number[][], to: number[][], t: number): number[][] {
-  return from.map((row, i) => row.map((v, j) => v + ((to[i]![j] as number) - v) * t));
-}
-
-const ANOMALY_MATRICES: Record<CvdAnomalyType, number[][]> = Object.fromEntries(
-  CVD_ANOMALY_TYPES.map((anomaly) => [
-    anomaly,
-    lerpMatrix(IDENTITY, MATRICES[ANOMALY_BASE[anomaly]], ANOMALY_SEVERITY),
-  ]),
-) as Record<CvdAnomalyType, number[][]>;
+const ANOMALY_MATRICES: Record<CvdAnomalyType, number[][]> = {
+  protanomaly: [
+    [0.38545, 0.769005, -0.154455],
+    [0.100526, 0.829802, 0.069673],
+    [-0.007442, -0.02219, 1.029632],
+  ],
+  deuteranomaly: [
+    [0.498864, 0.674741, -0.173604],
+    [0.205199, 0.754872, 0.039929],
+    [-0.011131, 0.030969, 0.980162],
+  ],
+  tritanomaly: [
+    [1.104996, -0.046633, -0.058363],
+    [-0.032137, 0.971635, 0.060503],
+    [0.001336, 0.317922, 0.680742],
+  ],
+};
 
 function applyMatrix(m: number[][], lin: { r: number; g: number; b: number }) {
   const row = (i: number) => {
@@ -110,14 +120,48 @@ export function simulateCvdHex(hex: string, view: CvdView): string {
   return rgb255ToHex(linearToRgb255(applyMatrix(m, lin)));
 }
 
+/** Euclidean distance in OKLab, the perceptually-even space the rest of this
+ *  tool already reasons about hue and lightness in — not raw 8-bit RGB. RGB
+ *  distance weighs each channel equally regardless of how visible a shift in
+ *  it actually is, so it both overstates separation for pairs that only
+ *  differ in a channel the eye is poor at judging and understates it for
+ *  small perceptually-large shifts (a lightness change reads as more
+ *  separation than the same-sized hue change at the same RGB distance). */
+function oklabDistance(hexA: string, hexB: string): number {
+  const a = linearToOklab(hexToLinear(hexA));
+  const b = linearToOklab(hexToLinear(hexB));
+  return Math.hypot(a.L - b.L, a.a - b.a, a.b - b.b);
+}
+
 /** Below this, two colours read as effectively the same under that
  *  deficiency. Empirical rather than standardised — it is a threshold for
- *  raising a question, not a conformance line. */
-export const CVD_SEPARATION_FLOOR = 15;
-export const CVD_SEPARATION_COMFORTABLE = 25;
+ *  raising a question, not a conformance line.
+ *
+ *  RGB distance and OKLab distance measure different things closely enough
+ *  that there is no unit conversion from the old floor (15, on the 0–441 RGB
+ *  scale) to this one — a straight ratio, tried first, flagged nearly every
+ *  shipped profile's own family as colliding with itself. Picked instead by
+ *  gathering every same-role, same-mode pair across every shipped profile's
+ *  family, splitting them by whether the *old* metric considered the pair
+ *  fine or already flagged it, and choosing the value that keeps the false-
+ *  positive rate against already-shipped, presumably-reviewed palettes low
+ *  (this floor mis-classifies roughly 1 in 200 previously-fine pairs) while
+ *  still catching a majority of what the old metric already flagged.
+ *
+ *  This is deliberately conservative: it inherits the old metric's
+ *  blind spots on the pairs it still misses, rather than surfacing every
+ *  pair OKLab disagrees with the RGB metric about. A pair the RGB metric
+ *  missed and OKLab would have caught stays unflagged here — the more
+ *  aggressive threshold that would catch those flagged an unreviewed amount
+ *  of noise against real, currently-shipped families and needs a person
+ *  looking at specific pairs in an actual CVD simulator to validate, not a
+ *  blanket recalibration. */
+export const CVD_SEPARATION_FLOOR = 0.016;
+export const CVD_SEPARATION_COMFORTABLE = 0.027;
 
 export interface CvdSeparation {
-  /** Worst separation across all simulated deficiencies, 0–441. */
+  /** Worst separation across all simulated deficiencies — Euclidean distance
+   *  in OKLab, where a whole-gamut hue change is on the order of 0.3–0.5. */
   value: number;
   type: CvdType;
 }
@@ -125,7 +169,7 @@ export interface CvdSeparation {
 export function worstCvdSeparation(hexA: string, hexB: string): CvdSeparation {
   let worst: CvdSeparation = { value: Number.POSITIVE_INFINITY, type: "protanopia" };
   for (const type of CVD_TYPES) {
-    const d = rgbDistanceHex(simulateCvdHex(hexA, type), simulateCvdHex(hexB, type));
+    const d = oklabDistance(simulateCvdHex(hexA, type), simulateCvdHex(hexB, type));
     if (d < worst.value) worst = { value: d, type };
   }
   return worst;

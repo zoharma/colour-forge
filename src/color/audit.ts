@@ -248,8 +248,8 @@ function cvdFindings(profile: Profile, family: SeededIntent[], draftName: string
           ? `${row.roleLabel} is all but identical to ${other}'s.`
           : `${row.roleLabel} is indistinguishable from ${other} under simulated colour-vision deficiency.`,
         detail: isWash
-          ? `Separation ${pair.value.toFixed(1)} on the 0–441 RGB scale. Quiet tinted surfaces are expected to sit close together, so this is not a contrast failure — but at this distance the two are effectively the same wash, so nothing is gained by having both.`
-          : `Separation ${pair.value.toFixed(1)} on the 0–441 RGB scale, below the ~${row.floor} floor where two colours stop being tellable apart. If these two ever appear together and colour is the only difference, that meaning is lost.`,
+          ? `Separation ${pair.value.toFixed(3)} in OKLab. Quiet tinted surfaces are expected to sit close together, so this is not a contrast failure — but at this distance the two are effectively the same wash, so nothing is gained by having both.`
+          : `Separation ${pair.value.toFixed(3)} in OKLab, below the ~${row.floor.toFixed(3)} floor where two colours stop being tellable apart. If these two ever appear together and colour is the only difference, that meaning is lost.`,
       });
     }
 
@@ -265,8 +265,8 @@ function cvdFindings(profile: Profile, family: SeededIntent[], draftName: string
           category: "cvd",
           mode: row.mode,
           role: row.role,
-          message: `${row.roleLabel} sits close to ${other} under ${row.worst.type} (${row.worst.value.toFixed(1)}).`,
-          detail: `Above the ${row.floor} floor but with little margin. Pair it with an icon or label rather than relying on colour alone.`,
+          message: `${row.roleLabel} sits close to ${other} under ${row.worst.type} (${row.worst.value.toFixed(3)}).`,
+          detail: `Above the ${row.floor.toFixed(3)} floor but with little margin. Pair it with an icon or label rather than relying on colour alone.`,
         });
       }
     }

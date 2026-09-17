@@ -4,6 +4,25 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- Colour-vision-deficiency separation is now measured as Euclidean distance
+  in OKLab rather than raw 8-bit RGB distance, so two colours that only
+  differ in a channel the eye is poor at judging no longer register as
+  "separated" the way RGB distance could make them. `CVD_SEPARATION_FLOOR`/
+  `COMFORTABLE` and each role's `separationFloor` were recalibrated against
+  every shipped profile's own family to keep already-shipped palettes about
+  as quiet as before — see the doc comment on `CVD_SEPARATION_FLOOR` in
+  `cvd.ts` for the calibration method and its known limits.
+- The anomalous-trichromacy views (Protanomaly, Deuteranomaly, Tritanomaly)
+  now use Machado et al. (2010)'s own published severity-0.6 matrices
+  instead of a naive blend from identity toward the full dichromat matrix —
+  the real intermediate coefficients are not a linear interpolation
+  (tritanomaly's in particular are non-monotonic partway through), so the
+  old approximation was measurably a different, less accurate curve.
+
 ## [0.5.2] - 2026-09-16
 
 ### Changed

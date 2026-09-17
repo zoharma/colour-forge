@@ -42,8 +42,8 @@ export interface RoleDef {
    *  thing (M3's `on-{intent}-fixed-variant`) rather than this tool's
    *  generic fallback. */
   tintedLabel?: string;
-  /** How far this role must stay from the same role on other intents, on the
-   *  0–441 RGB scale under simulated colour-vision deficiency.
+  /** How far this role must stay from the same role on other intents —
+   *  Euclidean distance in OKLab — under simulated colour-vision deficiency.
    *
    *  Not one number for the whole system, because the question the floor
    *  answers is "if two intents differed only here, would a user lose
@@ -132,8 +132,13 @@ export const roleByKey = (profile: Profile, key: string): RoleDef | undefined =>
  *  carries meaning — text, a border, a filled action — so two intents landing
  *  on the same colour there is a real loss. A role with no requirement is a
  *  background wash, where similarity is normal and only an outright duplicate
- *  is worth mentioning. */
-export const SEPARATION_FLOOR = { meaningBearing: 15, wash: 6 } as const;
+ *  is worth mentioning.
+ *
+ *  Both values (and `CVD_SEPARATION_FLOOR` in cvd.ts, which `meaningBearing`
+ *  matches) were picked the same way: least-disruptive against every shipped
+ *  profile's own family under the OKLab separation metric — see the doc
+ *  comment on `CVD_SEPARATION_FLOOR`. */
+export const SEPARATION_FLOOR = { meaningBearing: 0.016, wash: 0.01 } as const;
 
 export const separationFloorFor = (role: RoleDef): number =>
   role.separationFloor ?? (role.requirement === "none" ? SEPARATION_FLOOR.wash : SEPARATION_FLOOR.meaningBearing);
