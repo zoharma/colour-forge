@@ -22,7 +22,7 @@ All notable changes to this project are documented here. Format follows
   the real intermediate coefficients are not a linear interpolation
   (tritanomaly's in particular are non-monotonic partway through), so the
   old approximation was measurably a different, less accurate curve.
-  
+
 ## [0.5.3] - 2026-09-17
 
 ### Fixed
