@@ -13,9 +13,6 @@ import { PROFILES } from "../src/profiles";
 
 const POLICIES: ContrastPolicy[] = ["wcag-strict", "wcag-relaxed", "hue-first"];
 const REQUIREMENTS: WcagRequirement[] = ["body", "large", "non-text", "enhanced"];
-/** Two independently-designed real palettes, not one designer's taste in
- *  saturation — Radix leans harder into muted/earth hues than Material does. */
-const REFERENCE_PALETTE = [...MATERIAL_500, ...RADIX_9];
 
 /** Hues whose identity lives in a band of lightness that 4.5:1 sits outside
  *  of. Forcing conformance on these produces a brown or an olive.
@@ -48,29 +45,13 @@ const UNCONFLICTED = [
 ] as const;
 
 const BODY_TEXT_BG = "#fbfbfd";
+const DARK_TEXT_BG = "#121212";
 const BODY_TEXT_TARGET_LC = 75;
 
-const textStep = (seed: string, policy: ContrastPolicy) => {
-  const { H, C } = hexToOklch(seed);
-  return solveStep(
-    {
-      hue: H,
-      chroma: C,
-      backgroundHex: BODY_TEXT_BG,
-      backgroundY: apcaYHex(BODY_TEXT_BG),
-      backgroundIsLight: true,
-      requirement: "body",
-      policy,
-    },
-    BODY_TEXT_TARGET_LC,
-  );
-};
-
-const DARK_TEXT_BG = "#121212";
-
-/** Same synthetic harness as `textStep`, generalised over hue, requirement
- *  and background polarity — for sweeping the two invariants below across
- *  the whole hue circle rather than a handful of named swatches. */
+/** The shared synthetic harness every test in this file solves through —
+ *  generalised over hue, requirement and background polarity so the sweeps
+ *  below can cover the whole hue circle rather than a handful of named
+ *  swatches. */
 const stepFor = (
   hue: number,
   chroma: number,
@@ -92,6 +73,32 @@ const stepFor = (
     BODY_TEXT_TARGET_LC,
   );
 };
+
+const textStep = (seed: string, policy: ContrastPolicy) => {
+  const { H, C } = hexToOklch(seed);
+  return stepFor(H, C, "body", policy, true);
+};
+
+const HUE_CIRCLE_CHROMA = hexToOklch("#3f63c9").C;
+
+/** Every (requirement, background polarity, hue) combination the two
+ *  full-hue-circle sweeps below share, so widening or narrowing the domain
+ *  moves both invariants together instead of two hand-rolled loops that can
+ *  quietly drift apart. */
+function* sweepHueCircle(policy: ContrastPolicy) {
+  for (const requirement of REQUIREMENTS) {
+    for (const backgroundIsLight of [true, false]) {
+      for (let hue = 0; hue < 360; hue += 15) {
+        yield {
+          requirement,
+          backgroundIsLight,
+          hue,
+          step: stepFor(hue, HUE_CIRCLE_CHROMA, requirement, policy, backgroundIsLight),
+        };
+      }
+    }
+  }
+}
 
 describe("contrast policy", () => {
   it("defaults to a balance between APCA and WCAG 2.2, not either extreme", () => {
@@ -151,42 +158,31 @@ describe("contrast policy", () => {
     // at the hues picked to demonstrate the exemption. `below-both` is the
     // one legitimate exception — nothing at that hue clears even the eased
     // floor, and the solver says so rather than faking a result.
-    const { C } = hexToOklch("#3f63c9");
     for (const policy of POLICIES) {
-      for (const requirement of REQUIREMENTS) {
-        for (const backgroundIsLight of [true, false]) {
-          for (let hue = 0; hue < 360; hue += 15) {
-            const step = stepFor(hue, C, requirement, policy, backgroundIsLight);
-            if (step.verdict === "below-both") continue;
-            const effective = effectiveRequirement(requirement, policy);
-            expect(
-              meetsWcag(step.wcagRatio, effective),
-              `${policy}/${requirement}/${backgroundIsLight ? "light" : "dark"} bg/hue ${hue}`,
-            ).toBe(true);
-          }
-        }
+      for (const { requirement, backgroundIsLight, hue, step } of sweepHueCircle(policy)) {
+        if (step.verdict === "below-both") continue;
+        const effective = effectiveRequirement(requirement, policy);
+        expect(
+          meetsWcag(step.wcagRatio, effective),
+          `${policy}/${requirement}/${backgroundIsLight ? "light" : "dark"} bg/hue ${hue}`,
+        ).toBe(true);
       }
     }
   });
 
   it("under the default policy, a real miss never drops more than one level, across the full hue circle", () => {
     // Rule 2: generalises the fixed-hue check above (line ~106) into a swept
-    // property. `wcag-relaxed` promises a *named* level down, not an
-    // unbounded one — this is the guarantee that promise actually holds.
-    const { C } = hexToOklch("#3f63c9");
+    // property, over the same `sweepHueCircle` domain as rule 1 above.
+    // `wcag-relaxed` promises a *named* level down, not an unbounded one —
+    // this is the guarantee that promise actually holds.
     let misses = 0;
-    for (const requirement of REQUIREMENTS) {
-      for (const backgroundIsLight of [true, false]) {
-        for (let hue = 0; hue < 360; hue += 15) {
-          const step = stepFor(hue, C, requirement, "wcag-relaxed", backgroundIsLight);
-          if (step.verdict === "below-both" || step.conformance === "meets") continue;
-          misses++;
-          expect(
-            meetsWcag(step.wcagRatio, oneLevelDown(requirement)),
-            `${requirement}/${backgroundIsLight ? "light" : "dark"} bg/hue ${hue}`,
-          ).toBe(true);
-        }
-      }
+    for (const { requirement, backgroundIsLight, hue, step } of sweepHueCircle("wcag-relaxed")) {
+      if (step.verdict === "below-both" || step.conformance === "meets") continue;
+      misses++;
+      expect(
+        meetsWcag(step.wcagRatio, oneLevelDown(requirement)),
+        `${requirement}/${backgroundIsLight ? "light" : "dark"} bg/hue ${hue}`,
+      ).toBe(true);
     }
     // Guard against the test passing because the sweep never actually
     // exercised the relaxation it exists to check.
@@ -298,6 +294,10 @@ describe("the generic profile has no comparison family", () => {
 });
 
 describe("the exemption is never free", () => {
+  // One property per palette rather than both properties over both palettes
+  // combined: each is still checked against a real, independently-designed
+  // palette (this pair together covers Material and Radix once each), for
+  // roughly the cost of sweeping one full palette rather than two.
   it("only drops below a requirement where doing so buys visible chroma", () => {
     // The invariant that keeps a loosened policy from being a blanket
     // downgrade: every role that came out below its requirement by choice
@@ -311,7 +311,7 @@ describe("the exemption is never free", () => {
     let exemptions = 0;
 
     for (const profile of PROFILES) {
-      for (const { hex: seed } of REFERENCE_PALETTE) {
+      for (const { hex: seed } of MATERIAL_500) {
         const relaxed = buildDraft(profile, "x", seed, "hue-first");
         const strict = buildDraft(profile, "x", seed, "wcag-strict");
 
@@ -337,8 +337,10 @@ describe("the exemption is never free", () => {
   });
 
   it("leaves the strict policy fully conformant across the whole palette", () => {
+    // Radix here, Material above — see the note at the top of this
+    // `describe` for why the two properties don't share one palette.
     for (const profile of PROFILES) {
-      for (const { hex: seed } of REFERENCE_PALETTE) {
+      for (const { hex: seed } of RADIX_9) {
         const draft = buildDraft(profile, "x", seed, "wcag-strict");
         for (const mode of ["light", "dark"] as const) {
           for (const role of profile.roles) {

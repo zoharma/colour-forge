@@ -34,7 +34,7 @@ const MODES: ModeKey[] = ["light", "dark"];
 const POLICY_SLUGS: Record<ContrastPolicy, string> = {
   "hue-first": "more-apca",
   "wcag-relaxed": "system-default",
-  "wcag-strict": "full-wcag",
+  "wcag-strict": "wcag-strict",
 };
 const POLICY_FROM_SLUG: Record<string, ContrastPolicy> = Object.fromEntries(
   Object.entries(POLICY_SLUGS).map(([policy, slug]) => [slug, policy as ContrastPolicy]),

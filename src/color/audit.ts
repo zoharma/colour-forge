@@ -410,6 +410,12 @@ function familyFindings(profile: Profile, draft: Draft, siblings: SeededIntent[]
  *  were meant to differ and didn't. */
 const STEP_COLLAPSE_FLOOR = 2;
 
+/** Below this (negative) Lc gap, a ramp has doubled back rather than merely
+ *  collapsed two steps together — see `ramp-inversion` below. Exported so
+ *  tests sweeping for inversions check against the same threshold this file
+ *  actually fires on, rather than a hand-typed copy that could drift from it. */
+export const RAMP_INVERSION_TOLERANCE = -0.5;
+
 function rampFindings(profile: Profile, draft: Draft): Finding[] {
   const findings: Finding[] = [];
 
@@ -428,7 +434,7 @@ function rampFindings(profile: Profile, draft: Draft): Finding[] {
         .map((r) => r.label);
       const roleSuffix = roles.length ? ` (${roles.join(", ")})` : "";
 
-      if (gap < -0.5) {
+      if (gap < RAMP_INVERSION_TOLERANCE) {
         findings.push({
           id: `ramp-inversion-${mode}-${i}`,
           severity: "warning",
