@@ -4,13 +4,18 @@ import { buildDraft } from "../src/color/scale";
 import { hexToOklch } from "../src/color/oklch";
 import { apcaYHex } from "../src/color/apca";
 import { MATERIAL_500 } from "../src/profiles/material";
-import { solveStep, type ContrastPolicy } from "../src/color/solver";
-import { wcagRatioHex, permittedUsage, oneLevelDown } from "../src/color/wcag";
+import { RADIX_9 } from "../src/profiles/radix";
+import { solveStep, effectiveRequirement, type ContrastPolicy } from "../src/color/solver";
+import { wcagRatioHex, permittedUsage, oneLevelDown, meetsWcag, type WcagRequirement } from "../src/color/wcag";
 import { genericProfile } from "../src/profiles/generic";
 import { muiProfile } from "../src/profiles/mui";
 import { PROFILES } from "../src/profiles";
 
 const POLICIES: ContrastPolicy[] = ["wcag-strict", "wcag-relaxed", "hue-first"];
+const REQUIREMENTS: WcagRequirement[] = ["body", "large", "non-text", "enhanced"];
+/** Two independently-designed real palettes, not one designer's taste in
+ *  saturation — Radix leans harder into muted/earth hues than Material does. */
+const REFERENCE_PALETTE = [...MATERIAL_500, ...RADIX_9];
 
 /** Hues whose identity lives in a band of lightness that 4.5:1 sits outside
  *  of. Forcing conformance on these produces a brown or an olive.
@@ -55,6 +60,33 @@ const textStep = (seed: string, policy: ContrastPolicy) => {
       backgroundY: apcaYHex(BODY_TEXT_BG),
       backgroundIsLight: true,
       requirement: "body",
+      policy,
+    },
+    BODY_TEXT_TARGET_LC,
+  );
+};
+
+const DARK_TEXT_BG = "#121212";
+
+/** Same synthetic harness as `textStep`, generalised over hue, requirement
+ *  and background polarity — for sweeping the two invariants below across
+ *  the whole hue circle rather than a handful of named swatches. */
+const stepFor = (
+  hue: number,
+  chroma: number,
+  requirement: WcagRequirement,
+  policy: ContrastPolicy,
+  backgroundIsLight: boolean,
+) => {
+  const backgroundHex = backgroundIsLight ? BODY_TEXT_BG : DARK_TEXT_BG;
+  return solveStep(
+    {
+      hue,
+      chroma,
+      backgroundHex,
+      backgroundY: apcaYHex(backgroundHex),
+      backgroundIsLight,
+      requirement,
       policy,
     },
     BODY_TEXT_TARGET_LC,
@@ -111,6 +143,54 @@ describe("contrast policy", () => {
       expect(step.wcagRatio, `${name}`).toBeGreaterThanOrEqual(3);
       expect(step.wcagRatio, `${name}`).toBeLessThan(4.5);
     }
+  });
+
+  it("never drops below the policy's own effective requirement, across the full hue circle in both modes", () => {
+    // Rule 1 of the golden thread: `effectiveRequirement` names the live
+    // floor for a policy, and the solver must honour it everywhere, not just
+    // at the hues picked to demonstrate the exemption. `below-both` is the
+    // one legitimate exception — nothing at that hue clears even the eased
+    // floor, and the solver says so rather than faking a result.
+    const { C } = hexToOklch("#3f63c9");
+    for (const policy of POLICIES) {
+      for (const requirement of REQUIREMENTS) {
+        for (const backgroundIsLight of [true, false]) {
+          for (let hue = 0; hue < 360; hue += 15) {
+            const step = stepFor(hue, C, requirement, policy, backgroundIsLight);
+            if (step.verdict === "below-both") continue;
+            const effective = effectiveRequirement(requirement, policy);
+            expect(
+              meetsWcag(step.wcagRatio, effective),
+              `${policy}/${requirement}/${backgroundIsLight ? "light" : "dark"} bg/hue ${hue}`,
+            ).toBe(true);
+          }
+        }
+      }
+    }
+  });
+
+  it("under the default policy, a real miss never drops more than one level, across the full hue circle", () => {
+    // Rule 2: generalises the fixed-hue check above (line ~106) into a swept
+    // property. `wcag-relaxed` promises a *named* level down, not an
+    // unbounded one — this is the guarantee that promise actually holds.
+    const { C } = hexToOklch("#3f63c9");
+    let misses = 0;
+    for (const requirement of REQUIREMENTS) {
+      for (const backgroundIsLight of [true, false]) {
+        for (let hue = 0; hue < 360; hue += 15) {
+          const step = stepFor(hue, C, requirement, "wcag-relaxed", backgroundIsLight);
+          if (step.verdict === "below-both" || step.conformance === "meets") continue;
+          misses++;
+          expect(
+            meetsWcag(step.wcagRatio, oneLevelDown(requirement)),
+            `${requirement}/${backgroundIsLight ? "light" : "dark"} bg/hue ${hue}`,
+          ).toBe(true);
+        }
+      }
+    }
+    // Guard against the test passing because the sweep never actually
+    // exercised the relaxation it exists to check.
+    expect(misses).toBeGreaterThan(0);
   });
 
   it("marks a deliberate miss as chosen, not as an unavoidable failure", () => {
@@ -231,7 +311,7 @@ describe("the exemption is never free", () => {
     let exemptions = 0;
 
     for (const profile of PROFILES) {
-      for (const { hex: seed } of MATERIAL_500) {
+      for (const { hex: seed } of REFERENCE_PALETTE) {
         const relaxed = buildDraft(profile, "x", seed, "hue-first");
         const strict = buildDraft(profile, "x", seed, "wcag-strict");
 
@@ -258,7 +338,7 @@ describe("the exemption is never free", () => {
 
   it("leaves the strict policy fully conformant across the whole palette", () => {
     for (const profile of PROFILES) {
-      for (const { hex: seed } of MATERIAL_500) {
+      for (const { hex: seed } of REFERENCE_PALETTE) {
         const draft = buildDraft(profile, "x", seed, "wcag-strict");
         for (const mode of ["light", "dark"] as const) {
           for (const role of profile.roles) {

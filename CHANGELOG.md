@@ -4,6 +4,22 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- Renamed the "Full WCAG 2.2" contrast policy to "WCAG Strict" in the policy
+  picker, to read as a name rather than a claim of full standard coverage.
+- Documented the contrast policy's three invariants in the README (the WCAG
+  floor always holds, the default's concession never drops more than one
+  level, the audit's blockers always agree with the solver's own verdict),
+  with pointers to the tests that enforce each one.
+- Added Radix Colors' 28 core hues as a second reference palette alongside
+  Material's 19, and swept the contrast-policy and audit test suites against
+  both together — Radix leans much further into muted, earthy tones than
+  Material does, which the solver and audit were previously never checked
+  against. No behaviour or calculation changed; this is test coverage only.
+
 ## [0.5.4] - 2026-09-17
 
 ### Changed

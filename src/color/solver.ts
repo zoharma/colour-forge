@@ -55,7 +55,7 @@ export type ContrastPolicy =
 export const POLICY_LABELS: Record<ContrastPolicy, string> = {
   "hue-first": "More APCA",
   "wcag-relaxed": "System default",
-  "wcag-strict": "Full WCAG 2.2",
+  "wcag-strict": "WCAG Strict",
 };
 
 export const POLICY_DESCRIPTIONS: Record<ContrastPolicy, string> = {

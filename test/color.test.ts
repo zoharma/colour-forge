@@ -10,15 +10,17 @@ import {
   simulateCvdHex,
   worstCvdSeparation,
 } from "../src/color/cvd";
-import { solveStep, CHROMA_RETENTION_FLOOR, type StepContext } from "../src/color/solver";
+import { solveStep, CHROMA_RETENTION_FLOOR, type StepContext, type ContrastPolicy } from "../src/color/solver";
 import { buildDraft, generateScale, foregroundCandidates } from "../src/color/scale";
 import { auditDraft, draftAsIntent, separationRows } from "../src/color/audit";
 import { exportCss, exportJson, slugifyIntent } from "../src/color/export";
 import { diamondProfile } from "../src/profiles/diamond";
 import { genericProfile } from "../src/profiles/generic";
 import { PROFILES } from "../src/profiles";
+import { MATERIAL_500 } from "../src/profiles/material";
+import { RADIX_9 } from "../src/profiles/radix";
 import { WCAG_MINIMUM } from "../src/color/wcag";
-import type { ModeKey } from "../src/profiles/types";
+import type { ModeKey, Profile } from "../src/profiles/types";
 
 const MODES: ModeKey[] = ["light", "dark"];
 
@@ -299,22 +301,68 @@ describe("solver: APCA target with a WCAG floor", () => {
   });
 });
 
+/** A synthetic hue circle at a representative mid lightness/chroma, standing
+ *  in for "some hue nobody named" the way the audit's own hue sweep does. */
+const HUE_SWEEP_SEEDS = (() => {
+  const { C } = hexToOklch("#3f63c9");
+  const seeds: string[] = [];
+  for (let hue = 0; hue < 360; hue += 15) {
+    seeds.push(oklchToHex(0.55, C, hue));
+  }
+  return seeds;
+})();
+
+/** The hue circle plus every seed a profile actually ships in its own
+ *  picker — including the ones that sit deliberately off the sweep's fixed
+ *  lightness/chroma, like generic's `#e6bd19` yellow (OKLCH L 0.81), which
+ *  is lighter than its siblings on purpose (at the same L it reads as olive)
+ *  and sits close enough to the gamut edge that pale steps above it have
+ *  little chroma left to lose. A scale that only gets exercised at one
+ *  moderate lightness never visits that edge at all. */
+const scaleTestSeeds = (profile: Profile) => [...HUE_SWEEP_SEEDS, ...profile.seedPalette.map((s) => s.hex)];
+
 describe("scale generation", () => {
   for (const profile of PROFILES) {
     describe(profile.id, () => {
-      it("produces one step per scale slot in both modes", () => {
+      it("produces one step per scale slot in both modes, for every seed the profile ships", () => {
         for (const mode of MODES) {
-          expect(generateScale(profile, mode, "#3f63c9")).toHaveLength(profile.scaleSize);
+          for (const seed of scaleTestSeeds(profile)) {
+            expect(generateScale(profile, mode, seed), `${profile.id}/${mode}/${seed}`).toHaveLength(
+              profile.scaleSize,
+            );
+          }
         }
       });
 
-      it("orders every scale monotonically away from its background", () => {
+      it("orders every scale monotonically, or the audit names the exact step that doubles back", () => {
+        // Not "never inverts" — the solver doesn't promise that (a step held
+        // out by its own WCAG floor next to one hue-protection pulled back
+        // hard can genuinely double back; audit.ts's `rampFindings` exists
+        // to name it, not the solver to forbid it). The real contract is the
+        // golden thread again: any inversion the scale produces must be
+        // exactly the one the audit reports as `ramp-inversion`, not a
+        // silent one nobody would see. Caught live by a real yellow seed
+        // (`#fcd021`) inverting by over 20 Lc with no test ever swept enough
+        // seeds to notice.
         for (const mode of MODES) {
-          const scale = generateScale(profile, mode, "#3f63c9");
-          const lcs = scale.map((s) => Math.abs(s.lc));
-          for (let i = 1; i < lcs.length; i++) {
-            // Hue protection can flatten a step, but never invert the ramp.
-            expect(lcs[i]).toBeGreaterThanOrEqual((lcs[i - 1] as number) - 6);
+          for (const seed of scaleTestSeeds(profile)) {
+            const draft = buildDraft(profile, "draft", seed);
+            const scale = draft[mode].scale;
+            const family = [...profile.family, draftAsIntent(profile, draft)];
+            const inversions = new Set(
+              auditDraft(profile, draft, family)
+                .filter((f) => f.id.startsWith(`ramp-inversion-${mode}-`))
+                .map((f) => f.id),
+            );
+            const lcs = scale.map((s) => Math.abs(s.lc));
+            for (let i = 1; i < lcs.length; i++) {
+              const gap = (lcs[i] as number) - (lcs[i - 1] as number);
+              if (gap >= -0.5) continue;
+              expect(
+                inversions.has(`ramp-inversion-${mode}-${i}`),
+                `${profile.id}/${mode}/${seed} step ${i} doubled back (gap ${gap.toFixed(1)}) with no audit finding to show for it`,
+              ).toBe(true);
+            }
           }
         }
       });
@@ -348,18 +396,34 @@ describe("scale generation", () => {
 });
 
 describe("scale sanity", () => {
-  it("keeps the light scale strictly ordered", () => {
+  it("keeps every scale strictly ordered, for every seed the profile ships", () => {
     for (const profile of PROFILES) {
       for (const mode of MODES) {
-        const scale = generateScale(profile, mode, "#3f63c9");
-        const lightness = scale.map((s) => hexToOklch(s.hex).L);
-        for (let i = 1; i < lightness.length; i++) {
-          expect(lightness[i], `${profile.id}/${mode} step ${i} duplicates step ${i - 1}`).not.toBeCloseTo(
-            lightness[i - 1] as number,
-            3,
-          );
+        for (const seed of scaleTestSeeds(profile)) {
+          const scale = generateScale(profile, mode, seed);
+          const lightness = scale.map((s) => hexToOklch(s.hex).L);
+          for (let i = 1; i < lightness.length; i++) {
+            expect(
+              lightness[i],
+              `${profile.id}/${mode}/${seed} step ${i} duplicates step ${i - 1}`,
+            ).not.toBeCloseTo(lightness[i - 1] as number, 3);
+          }
         }
       }
+    }
+  });
+
+  it("keeps a pale seed distinct at the top of the scale, where the gamut narrows most", () => {
+    // #e6bd19 is generic's own shipped Yellow seed, lighter than its
+    // siblings on purpose (OKLCH L 0.81) — exactly the region where the
+    // sRGB gamut holds the least chroma and pale steps are most at risk of
+    // collapsing onto each other (see CHROMA_RETENTION_FLOOR's doc comment
+    // in solver.ts). A regression here would show up as two of the palest
+    // steps sharing a hex, not as any single step being "wrong".
+    for (const mode of MODES) {
+      const scale = generateScale(genericProfile, mode, "#e6bd19");
+      const hexes = scale.map((s) => s.hex);
+      expect(new Set(hexes).size, `${mode}: ${hexes.join(", ")}`).toBe(hexes.length);
     }
   });
 });
@@ -496,6 +560,62 @@ describe("audit", () => {
     const draft = buildDraft(empty, "draft", "#3f63c9");
     const findings = auditDraft(empty, draft, [draftAsIntent(empty, draft)]);
     expect(findings.every((f) => f.category !== "cvd")).toBe(true);
+  });
+
+  it("raises the exact contrast blocker the solver's own conformance predicts — no fewer, no more", () => {
+    // Rule 3 of the golden thread: the audit does not decide independently
+    // whether a role is a problem — it reads the solver's `conformance`/
+    // `verdict` fields, which are the one place that decision is actually
+    // made. This derives the expected finding straight from those fields
+    // (not from a hand-picked scenario) and swept across the real palette,
+    // so audit.ts and solver.ts can't quietly drift apart from each other.
+    const policies: ContrastPolicy[] = ["wcag-relaxed", "hue-first"];
+    let belowByChoiceSeen = 0;
+
+    for (const policy of policies) {
+      for (const profile of PROFILES) {
+        for (const { hex: seed } of [...MATERIAL_500, ...RADIX_9]) {
+          const draft = buildDraft(profile, "x", seed, policy);
+          const family = [...profile.family, draftAsIntent(profile, draft)];
+          const blockerIds = new Set(
+            auditDraft(profile, draft, family)
+              .filter((f) => f.severity === "blocker" && f.category === "contrast")
+              .map((f) => f.id),
+          );
+
+          for (const mode of MODES) {
+            for (const role of profile.roles) {
+              const step = draft[mode].roles[role.key];
+              if (!step) continue;
+              const label = `${policy}/${profile.id}/${mode}/${role.key}@${seed}`;
+
+              if (step.verdict === "pinned") {
+                if (step.conformance !== "meets") {
+                  expect(blockerIds.has(`contrast-pinned-${mode}-${role.key}`), label).toBe(true);
+                }
+                continue;
+              }
+
+              if (step.conformance === "below-by-choice") {
+                belowByChoiceSeen++;
+                expect(blockerIds.has(`contrast-below-aa-${mode}-${role.key}`), label).toBe(true);
+              } else if (step.verdict === "below-both") {
+                expect(blockerIds.has(`contrast-fail-${mode}-${role.key}`), label).toBe(true);
+              } else {
+                // Conformant, or held up by WCAG rather than missing it —
+                // never a blocker either way.
+                expect(blockerIds.has(`contrast-below-aa-${mode}-${role.key}`), label).toBe(false);
+                expect(blockerIds.has(`contrast-fail-${mode}-${role.key}`), label).toBe(false);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Guard against the test passing because the relaxing policies never
+    // actually produced the state it exists to check.
+    expect(belowByChoiceSeen).toBeGreaterThan(0);
   });
 });
 

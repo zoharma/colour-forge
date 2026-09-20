@@ -180,7 +180,7 @@ const APCA_ACCEPTABLE_LC = 45;
 
 /** Which measure a surface role's foreground actually goes by.
  *
- *  "More APCA" and "Full WCAG 2.2" are absolute — every role's foreground
+ *  "More APCA" and "WCAG Strict" are absolute — every role's foreground
  *  follows the same measure the policy names, full stop. "System default"
  *  is where the balance is role-aware rather than a single number: a role
  *  that already carries its own real WCAG requirement (`solid`'s 3:1, say)
@@ -218,7 +218,7 @@ function bestByApca<T extends { lc: number; meetsRequirement: boolean }>(candida
 /** A candidate that meets the requirement always beats one that doesn't,
  *  regardless of the APCA gap between them — APCA only breaks a tie among
  *  candidates on the same side of that line. Used for "System default" and
- *  "Full WCAG 2.2", where the policy's whole point is not shipping a
+ *  "WCAG Strict", where the policy's whole point is not shipping a
  *  foreground that fails. */
 function bestByCompliance<T extends { lc: number; meetsRequirement: boolean }>(candidates: T[]): T | undefined {
   let best: T | undefined;
@@ -393,7 +393,7 @@ export function foregroundCandidates(
 
   // Which candidate gets recommended follows the same trust-APCA-or-hold-
   // WCAG split as the rest of the solver, because a role solved under
-  // "Full WCAG 2.2" and then paired with a foreground that fails WCAG would
+  // "WCAG Strict" and then paired with a foreground that fails WCAG would
   // break the one promise that policy makes. See `foregroundStrategy` for
   // how the split itself is decided.
   //

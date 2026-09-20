@@ -66,7 +66,7 @@ two rather than either extreme:
 | --- | --- |
 | **More APCA** | Solve to the APCA target and keep the hue's chroma, still taking full WCAG 2.2 conformance wherever it's free. Never trades chroma away to force it. |
 | **System default** | Drop one *named* level rather than take the full APCA-first result, so body text becomes large-text-only and a boundary becomes decorative. Bounded, not arbitrary — the balance between the two extremes. |
-| **Full WCAG 2.2** | Never return a colour below the role's requirement, no matter what it costs the hue. |
+| **WCAG Strict** | Never return a colour below the role's requirement, no matter what it costs the hue. |
 
 Two guards stop this becoming a blanket downgrade, which is the failure mode
 that would make it worse than useless:
@@ -83,6 +83,32 @@ Anything below its requirement is a **blocker**, not a note: it is a decision
 that has to reach whoever implements it. The audit names what the ratio is
 legal for and what obligation comes with it, and the same note is written into
 the exported CSS so it survives the paste into a token file.
+
+### Checked as invariants, not just described
+
+The three claims above aren't only documented — each is a swept property
+test, not a handful of chosen examples:
+
+1. **The floor always holds.** A step never returns a ratio below what the
+   active policy actually concedes (its `effectiveRequirement`), across the
+   full hue circle, every requirement level, and both background polarities —
+   the one exception being a hue that can't clear even that eased floor,
+   which the solver reports as `fails` rather than faking a result.
+2. **The default's concession is bounded.** Under System default, a role that
+   misses its real requirement still clears the *next* level down, never
+   further, at any hue.
+3. **The audit says exactly what the solver decided.** Whether a role is
+   reported as a blocker is read off the solver's own verdict, not decided a
+   second time — checked by deriving the expected finding from that verdict
+   and diffing it against the audit's real output, across every profile and
+   two independently-designed reference palettes (Material's core 19 hues and
+   Radix Colors' 28, which leans much further into muted, earthy tones).
+
+Rules 1 and 2 live in `test/contrast-policy.test.ts`; rule 3 is the `audit`
+block in `test/color.test.ts`. Together they're the thread that ties the
+policy described above to the solver that implements it to the audit that
+reports on it — a change to any one of the three that breaks its promise to
+the others fails a test, not just a review.
 
 ### System default picks its measure per role, not globally
 
@@ -101,7 +127,7 @@ surface actually is:
   does not need.
 
 So under System default, a role with a real requirement trusts APCA; a role
-without one trusts WCAG. More APCA and Full WCAG 2.2 pick one measure for
+without one trusts WCAG. More APCA and WCAG Strict pick one measure for
 every role instead. Either way, a candidate is only shown as struck through
 when it fails the measure actually being trusted for that role, not raw WCAG
 pass/fail — an option that reads fine by APCA is never crossed out just
