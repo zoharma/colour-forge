@@ -84,8 +84,7 @@ type HueCircleSample = {
 
 const hueCircleSweepCache = new Map<ContrastPolicy, HueCircleSample[]>();
 
-/** The full-hue-circle sweep the tests below share, cached per policy so
- *  two tests sweeping the same policy don't redo the same `solveStep` calls. */
+/** Cached per policy so two tests sweeping the same one don't redo it. */
 function sweepHueCircle(policy: ContrastPolicy): HueCircleSample[] {
   const cached = hueCircleSweepCache.get(policy);
   if (cached) return cached;
@@ -314,9 +313,7 @@ describe("the generic profile has no comparison family", () => {
 });
 
 describe("the exemption is never free", () => {
-  // Both properties below read the same hue-first/wcag-strict draft pair.
-  // Lazy, not computed at describe-scope, so filtering to just one of these
-  // two tests doesn't still pay for both drafts.
+  // Both tests below share this; lazy so filtering to one doesn't pay for both.
   type DraftPair = { profile: (typeof PROFILES)[number]; seed: string; relaxed: Draft; strict: Draft };
   let draftPairsCache: DraftPair[] | undefined;
   const draftPairs = (): DraftPair[] =>

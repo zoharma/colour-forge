@@ -394,21 +394,13 @@ function familyFindings(profile: Profile, draft: Draft, siblings: SeededIntent[]
 
 /* ---------------------------------------------------------------------- */
 
-/** A scale whose steps stop getting darker (or lighter) as they go is no
- *  longer a scale. Two different things produce it, and both are right to
- *  hold their ground rather than chase the ramp: a pinned role can pull a
- *  step toward the background while a neighbour has a hard WCAG floor that
- *  will not follow it, or hue protection can recover a hue's chroma by
- *  moving a step *toward* more contrast — which some hues need far more of
- *  than their curve position asks for — past where a lower-contrast
- *  neighbour landed. Either way the fix belongs to the person, not a
- *  silent auto-correction: the result is still worth saying out loud rather
- *  than shipping a ramp that doubles back. */
-/** Below this Lc gap, two adjacent steps read as the same swatch. Set well
- *  under the smallest *intentional* gap in any shipped curve (~3–4 Lc, the
- *  compression every profile already uses near white and black) so this
- *  never fires on a curve doing that on purpose — only on two steps that
- *  were meant to differ and didn't. */
+/** A scale that stops getting darker/lighter as it goes is no longer a
+ *  scale — a pinned role can hold ground against a neighbour's WCAG floor,
+ *  or hue protection can push a step past a lower-contrast neighbour. Either
+ *  way it's worth saying out loud, not silently auto-corrected. */
+/** Below this Lc gap, two steps read as the same swatch — well under the
+ *  smallest intentional gap any shipped curve uses (~3–4 Lc near white/black),
+ *  so it only fires on steps that were meant to differ and didn't. */
 const STEP_COLLAPSE_FLOOR = 2;
 
 function rampFindings(profile: Profile, draft: Draft): Finding[] {

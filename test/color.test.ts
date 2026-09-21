@@ -298,10 +298,8 @@ describe("solver: APCA target with a WCAG floor", () => {
   });
 });
 
-/** No inversion in the current sweep exceeds ~27 Lc (a real yellow seed,
- *  hue-protection pulling hard against a WCAG-held neighbour); double that
- *  for headroom. Not a promise the solver makes, just a catastrophe
- *  backstop — the audit-attribution check below is the real contract. */
+/** Catastrophe backstop, not a solver promise — worst known real inversion
+ *  is ~27 Lc, this doubles it for headroom. */
 const RAMP_INVERSION_CEILING = -55;
 
 /** A synthetic hue circle at a representative mid lightness/chroma, standing
@@ -336,17 +334,12 @@ describe("scale generation", () => {
       });
 
       it("orders every scale monotonically, or the audit names the exact step that doubles back", () => {
-        // Not "never inverts" — the solver doesn't promise that (a step held
-        // out by its own WCAG floor next to one hue-protection pulled back
-        // hard can genuinely double back; audit.ts's `rampFindings` exists
-        // to name it, not the solver to forbid it). The real contract is the
-        // golden thread again: any inversion the scale produces must be
-        // exactly the one the audit reports as `ramp-inversion`, not a
-        // silent one nobody would see. Caught live by a real yellow seed
-        // (`#fcd021`) inverting by over 20 Lc with no test ever swept enough
-        // seeds to notice.
-        // `seed` outer: `buildDraft` always solves both modes in one call,
-        // so compute it once per seed and index `draft[mode]` below.
+        // The solver doesn't promise "never inverts" (WCAG floor vs. hard
+        // hue-protection can genuinely double back) — the contract is that
+        // any inversion is exactly the one the audit reports as
+        // `ramp-inversion`. Caught live by `#fcd021` inverting 20+ Lc with
+        // no test sweeping enough seeds to notice.
+        // `seed` outer: `buildDraft` solves both modes in one call.
         for (const seed of seeds) {
           const draft = buildDraft(profile, "draft", seed);
           const family = [...profile.family, draftAsIntent(profile, draft)];
@@ -568,27 +561,18 @@ describe("audit", () => {
   });
 
   it("raises the exact contrast blocker the solver's own conformance predicts — no fewer, no more", () => {
-    // Rule 3 of the golden thread: the audit does not decide independently
-    // whether a role is a problem — it reads the solver's `conformance`/
-    // `verdict` fields, which are the one place that decision is actually
-    // made. This derives the expected finding straight from those fields
-    // (not from a hand-picked scenario) and swept across the real palette,
-    // so audit.ts and solver.ts can't quietly drift apart from each other.
+    // The audit reads the solver's `conformance`/`verdict` fields rather
+    // than deciding independently; this derives the expected finding from
+    // those fields and sweeps it against the real audit output.
     //
-    // `pinned` and `below-both` never come up in this sweep — no `pin` is
-    // passed to `buildDraft`, and no shipped profile role uses the
-    // "enhanced" requirement that `below-both` needs against a real seed —
-    // so those two branches of the mapping are asserted absent here and
-    // covered directly elsewhere: `pinned` by "reports an unusable pinned
-    // colour..." in pinning.test.ts, `below-both` by the synthetic-profile
-    // test just below this one.
+    // `pinned`/`below-both` never come up here (no `pin` passed, no shipped
+    // role uses "enhanced") — covered instead by pinning.test.ts and the
+    // synthetic-profile test just below.
     //
-    // Every 3rd seed of the reference palette, not all of it: this is a
-    // structural check (does the audit's id mirror the solver's own
-    // verdict?), not a hue-sensitivity one — the full hue circle is already
-    // swept elsewhere (`HUE_SWEEP_SEEDS`) — so a third of the palette still
-    // exercises every profile/policy/role combination while keeping this,
-    // otherwise the suite's slowest test, to a third of its cost.
+    // Every 3rd seed, not all of it: a structural check (does the audit's
+    // id mirror the verdict?), not a hue-sensitivity one — the hue circle is
+    // already swept elsewhere — so this keeps the suite's slowest test to a
+    // third of its cost.
     const policies: ContrastPolicy[] = ["wcag-relaxed", "hue-first"];
     const sampledPalette = REFERENCE_PALETTE.filter((_, i) => i % 3 === 0);
     let belowByChoiceSeen = 0;
@@ -633,11 +617,8 @@ describe("audit", () => {
   });
 
   it("raises contrast-fail for a role that cannot meet its requirement at any lightness", () => {
-    // The `below-both` branch of rule 3, built rather than found: no shipped
-    // profile role uses "enhanced" (7:1), and #767676 is chosen the same way
-    // the solver's own "reports a hue that cannot meet its requirement"
-    // test (above) picks it — close enough to mid-grey that neither white
-    // nor black foreground can reach 7:1 against it, whatever the seed.
+    // Built, not found: no shipped role uses "enhanced" (7:1). #767676 is
+    // close enough to mid-grey that no foreground reaches 7:1 against it.
     const impossible: Profile = {
       ...genericProfile,
       roles: genericProfile.roles.map((role) =>
