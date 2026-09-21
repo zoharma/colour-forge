@@ -11,7 +11,9 @@ All notable changes to this project are documented here. Format follows
 - Renamed the "Full WCAG 2.2" contrast policy to "WCAG Strict" in the policy
   picker, to read as a name rather than a claim of full standard coverage,
   and updated the policy's URL slug (`full-wcag` → `wcag-strict`) to match,
-  so a shared link still reads like the tab it came from.
+  so a shared link still reads like the tab it came from. A link made before
+  this rename still resolves to WCAG Strict — the old slug stays recognised,
+  just never generated.
 - Documented the contrast policy's three invariants in the README (the WCAG
   floor always holds, the default's concession never drops more than one
   level, the audit's blockers always agree with the solver's own verdict),

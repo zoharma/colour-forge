@@ -19,7 +19,8 @@ import { genericProfile } from "../src/profiles/generic";
 import { PROFILES } from "../src/profiles";
 import { WCAG_MINIMUM } from "../src/color/wcag";
 import type { ModeKey, Profile } from "../src/profiles/types";
-import { REFERENCE_PALETTE } from "./reference-palettes";
+import { REFERENCE_PALETTE, hueCircle } from "./reference-palettes";
+import { stepContext } from "./step-context";
 
 const MODES: ModeKey[] = ["light", "dark"];
 
@@ -216,16 +217,7 @@ describe("CVD simulation", () => {
 describe("solver: APCA target with a WCAG floor", () => {
   const context = (hex: string, background: string, requirement: StepContext["requirement"]): StepContext => {
     const { H, C } = hexToOklch(hex);
-    const backgroundY = apcaYHex(background);
-    return {
-      hue: H,
-      chroma: C,
-      backgroundHex: background,
-      backgroundY,
-      backgroundIsLight: backgroundY > 0.4,
-      requirement,
-      policy: "wcag-strict" as const,
-    };
+    return stepContext(H, C, background, requirement, "wcag-strict");
   };
 
   it("hits the APCA target when the hue can afford it", () => {
@@ -304,11 +296,7 @@ describe("solver: APCA target with a WCAG floor", () => {
  *  in for "some hue nobody named" the way the audit's own hue sweep does. */
 const HUE_SWEEP_SEEDS = (() => {
   const { C } = hexToOklch("#3f63c9");
-  const seeds: string[] = [];
-  for (let hue = 0; hue < 360; hue += 15) {
-    seeds.push(oklchToHex(0.55, C, hue));
-  }
-  return seeds;
+  return [...hueCircle()].map((hue) => oklchToHex(0.55, C, hue));
 })();
 
 /** The hue circle plus every seed a profile actually ships in its own
@@ -345,15 +333,18 @@ describe("scale generation", () => {
         // silent one nobody would see. Caught live by a real yellow seed
         // (`#fcd021`) inverting by over 20 Lc with no test ever swept enough
         // seeds to notice.
-        for (const mode of MODES) {
-          for (const seed of seeds) {
-            const draft = buildDraft(profile, "draft", seed);
+        // `seed` outer, `mode` inner: `buildDraft` always solves both modes
+        // in one call, so computing it (and auditing it) once per seed and
+        // indexing `draft[mode]` for each mode avoids redoing that same
+        // work a second time per seed.
+        for (const seed of seeds) {
+          const draft = buildDraft(profile, "draft", seed);
+          const family = [...profile.family, draftAsIntent(profile, draft)];
+          const findings = auditDraft(profile, draft, family);
+          for (const mode of MODES) {
             const scale = draft[mode].scale;
-            const family = [...profile.family, draftAsIntent(profile, draft)];
             const inversions = new Set(
-              auditDraft(profile, draft, family)
-                .filter((f) => f.id.startsWith(`ramp-inversion-${mode}-`))
-                .map((f) => f.id),
+              findings.filter((f) => f.id.startsWith(`ramp-inversion-${mode}-`)).map((f) => f.id),
             );
             const lcs = scale.map((s) => Math.abs(s.lc));
             for (let i = 1; i < lcs.length; i++) {

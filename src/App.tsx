@@ -36,9 +36,17 @@ const POLICY_SLUGS: Record<ContrastPolicy, string> = {
   "wcag-relaxed": "system-default",
   "wcag-strict": "wcag-strict",
 };
-const POLICY_FROM_SLUG: Record<string, ContrastPolicy> = Object.fromEntries(
-  Object.entries(POLICY_SLUGS).map(([policy, slug]) => [slug, policy as ContrastPolicy]),
-);
+/** `full-wcag` was this policy's slug before it was renamed to "WCAG Strict"
+ *  — kept resolvable so a link made before the rename still opens the right
+ *  policy instead of silently falling back to the default. Never generated:
+ *  `POLICY_SLUGS` alone decides what a *new* link looks like. */
+const LEGACY_POLICY_SLUGS: Record<string, ContrastPolicy> = {
+  "full-wcag": "wcag-strict",
+};
+const POLICY_FROM_SLUG: Record<string, ContrastPolicy> = {
+  ...LEGACY_POLICY_SLUGS,
+  ...Object.fromEntries(Object.entries(POLICY_SLUGS).map(([policy, slug]) => [slug, policy as ContrastPolicy])),
+};
 
 /** Seed, name and profile live in the URL so a colour under discussion can be
  *  sent to someone rather than described. Everything else is local taste. */

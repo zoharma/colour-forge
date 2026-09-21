@@ -2,14 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { buildDraft } from "../src/color/scale";
 import { hexToOklch } from "../src/color/oklch";
-import { apcaYHex } from "../src/color/apca";
-import { MATERIAL_500 } from "../src/profiles/material";
-import { RADIX_9 } from "../src/profiles/radix";
 import { solveStep, effectiveRequirement, type ContrastPolicy } from "../src/color/solver";
 import { wcagRatioHex, permittedUsage, oneLevelDown, meetsWcag, type WcagRequirement } from "../src/color/wcag";
 import { genericProfile } from "../src/profiles/generic";
 import { muiProfile } from "../src/profiles/mui";
 import { PROFILES } from "../src/profiles";
+import { REFERENCE_PALETTE, hueCircle } from "./reference-palettes";
+import { stepContext } from "./step-context";
 
 const POLICIES: ContrastPolicy[] = ["wcag-strict", "wcag-relaxed", "hue-first"];
 const REQUIREMENTS: WcagRequirement[] = ["body", "large", "non-text", "enhanced"];
@@ -60,18 +59,7 @@ const stepFor = (
   backgroundIsLight: boolean,
 ) => {
   const backgroundHex = backgroundIsLight ? BODY_TEXT_BG : DARK_TEXT_BG;
-  return solveStep(
-    {
-      hue,
-      chroma,
-      backgroundHex,
-      backgroundY: apcaYHex(backgroundHex),
-      backgroundIsLight,
-      requirement,
-      policy,
-    },
-    BODY_TEXT_TARGET_LC,
-  );
+  return solveStep(stepContext(hue, chroma, backgroundHex, requirement, policy), BODY_TEXT_TARGET_LC);
 };
 
 const textStep = (seed: string, policy: ContrastPolicy) => {
@@ -88,7 +76,7 @@ const HUE_CIRCLE_CHROMA = hexToOklch("#3f63c9").C;
 function* sweepHueCircle(policy: ContrastPolicy) {
   for (const requirement of REQUIREMENTS) {
     for (const backgroundIsLight of [true, false]) {
-      for (let hue = 0; hue < 360; hue += 15) {
+      for (const hue of hueCircle()) {
         yield {
           requirement,
           backgroundIsLight,
@@ -158,7 +146,12 @@ describe("contrast policy", () => {
     // at the hues picked to demonstrate the exemption. `below-both` is the
     // one legitimate exception — nothing at that hue clears even the eased
     // floor, and the solver says so rather than faking a result.
-    for (const policy of POLICIES) {
+    //
+    // `hue-first` is swept separately below, not here: its effective
+    // requirement is always "none", so `meetsWcag(ratio, "none")` would be
+    // true for any non-negative ratio and assert nothing across the whole
+    // circle.
+    for (const policy of ["wcag-strict", "wcag-relaxed"] as const) {
       for (const { requirement, backgroundIsLight, hue, step } of sweepHueCircle(policy)) {
         if (step.verdict === "below-both") continue;
         const effective = effectiveRequirement(requirement, policy);
@@ -167,6 +160,16 @@ describe("contrast policy", () => {
           `${policy}/${requirement}/${backgroundIsLight ? "light" : "dark"} bg/hue ${hue}`,
         ).toBe(true);
       }
+    }
+  });
+
+  it("gives hue-first no floor at all, for every requirement", () => {
+    // The other half of rule 1: "More APCA" explicitly never trades chroma
+    // away to force conformance, so its effective requirement is "none"
+    // regardless of the role's real one. Checked directly rather than
+    // through a hue sweep, since the property holds independently of hue.
+    for (const requirement of REQUIREMENTS) {
+      expect(effectiveRequirement(requirement, "hue-first")).toBe("none");
     }
   });
 
@@ -294,24 +297,20 @@ describe("the generic profile has no comparison family", () => {
 });
 
 describe("the exemption is never free", () => {
-  // One property per palette rather than both properties over both palettes
-  // combined: each is still checked against a real, independently-designed
-  // palette (this pair together covers Material and Radix once each), for
-  // roughly the cost of sweeping one full palette rather than two.
   it("only drops below a requirement where doing so buys visible chroma", () => {
     // The invariant that keeps a loosened policy from being a blanket
     // downgrade: every role that came out below its requirement by choice
     // must be meaningfully more colourful than the conformant alternative.
     //
-    // Swept over the real Material palette rather than synthetic hues at a
-    // fixed chroma. Whether a hue can hold its requirement depends on where
-    // its gamut peaks in lightness, and a normalised sweep flattens exactly
-    // that — an earlier version of this test passed while never once
-    // triggering the exemption it was meant to check.
+    // Swept over both real reference palettes rather than synthetic hues at
+    // a fixed chroma. Whether a hue can hold its requirement depends on
+    // where its gamut peaks in lightness, and a normalised sweep flattens
+    // exactly that — an earlier version of this test passed while never
+    // once triggering the exemption it was meant to check.
     let exemptions = 0;
 
     for (const profile of PROFILES) {
-      for (const { hex: seed } of MATERIAL_500) {
+      for (const { hex: seed } of REFERENCE_PALETTE) {
         const relaxed = buildDraft(profile, "x", seed, "hue-first");
         const strict = buildDraft(profile, "x", seed, "wcag-strict");
 
@@ -337,10 +336,8 @@ describe("the exemption is never free", () => {
   });
 
   it("leaves the strict policy fully conformant across the whole palette", () => {
-    // Radix here, Material above — see the note at the top of this
-    // `describe` for why the two properties don't share one palette.
     for (const profile of PROFILES) {
-      for (const { hex: seed } of RADIX_9) {
+      for (const { hex: seed } of REFERENCE_PALETTE) {
         const draft = buildDraft(profile, "x", seed, "wcag-strict");
         for (const mode of ["light", "dark"] as const) {
           for (const role of profile.roles) {
