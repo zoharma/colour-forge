@@ -309,13 +309,10 @@ const HUE_SWEEP_SEEDS = (() => {
   return [...hueCircle()].map((hue) => oklchToHex(0.55, C, hue));
 })();
 
-/** The hue circle plus every seed a profile actually ships in its own
- *  picker — including the ones that sit deliberately off the sweep's fixed
- *  lightness/chroma, like generic's `#e6bd19` yellow (OKLCH L 0.81), which
- *  is lighter than its siblings on purpose (at the same L it reads as olive)
- *  and sits close enough to the gamut edge that pale steps above it have
- *  little chroma left to lose. A scale that only gets exercised at one
- *  moderate lightness never visits that edge at all. */
+/** The hue circle plus every seed a profile ships — including ones off the
+ *  sweep's fixed lightness/chroma, like generic's pale `#e6bd19` yellow,
+ *  which sits close enough to the gamut edge that a moderate-lightness
+ *  sweep alone would never visit it. */
 const scaleTestSeeds = (profile: Profile) => [...HUE_SWEEP_SEEDS, ...profile.seedPalette.map((s) => s.hex)];
 
 describe("scale generation", () => {
