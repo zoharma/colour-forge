@@ -23,6 +23,10 @@ All notable changes to this project are documented here. Format follows
   both together — Radix leans much further into muted, earthy tones than
   Material does, which the solver and audit were previously never checked
   against. No behaviour or calculation changed; this is test coverage only.
+- Fixed the "How the target contrast is chosen" explainer text, which
+  claimed the solver never drops below WCAG 2.2 — true only under WCAG
+  Strict. It now names the actual floor per policy, including System
+  default's one-level concession.
 
 ## [0.5.4] - 2026-09-17
 

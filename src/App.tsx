@@ -270,8 +270,9 @@ export function App() {
               <p className="section-note" style={{ marginTop: 12 }}>
                 The seed's hue and chroma drive a {profile.scaleSize}-step scale solved separately for each
                 mode. Each step aims at an APCA target, eases off only as far as that hue needs to stay
-                recognisable, and never drops below what WCAG 2.2 requires for how the role is used. A badge
-                appears on any role where those disagreed.
+                recognisable, and never drops below what the active policy requires — the full WCAG 2.2
+                floor under WCAG Strict, one level less under System default, no floor under More APCA. A
+                badge appears on any role where those disagreed.
               </p>
               <p className="section-note" style={{ marginBottom: 0 }}>
                 APCA targets run from Lc 45 for large or non-text elements up to Lc 75+ for body copy. WCAG
