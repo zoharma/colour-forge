@@ -12,6 +12,7 @@ npm run dev        # http://localhost:5173
 npm test           # vitest run — one-shot; npm run test:watch to watch
 npm run typecheck  # tsc -b --noEmit
 npm run build      # tsc -b && vite build — also the real type-check gate
+npm run generate   # scripts/generate.ts — build/audit a draft from a seed by code, no UI; see README "Generating results by code"
 ```
 
 There is no linter or formatter configured (no ESLint/Prettier config in the

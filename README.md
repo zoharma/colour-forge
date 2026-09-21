@@ -271,6 +271,27 @@ GitHub Actions**. The workflow derives `BASE_PATH` from the repository name,
 so a project page works without editing anything; a user page or custom domain
 wants `BASE_PATH=/`, which is also the local default.
 
+## Generating results by code
+
+`src/color/*.ts` and `src/profiles/*.ts` have no React import, so the same
+solver and audit the UI calls can be driven from a script instead of a
+browser. `scripts/generate.ts` is a thin CLI over `buildDraft`/`auditDraft`
+that prints one JSON object (the same shape as the UI's "Export JSON" panel)
+to stdout:
+
+```bash
+npm run generate -- --seed "#3366ff" --profile mui
+npm run generate -- --seed "#3366ff" --profile mui --policy hue-first --audit
+```
+
+| Flag | Default | |
+| --- | --- | --- |
+| `--seed <hex>` | required | The seed colour. |
+| `--profile <id>` | `generic` | One of `generic`, `mui`, `material3`, `carbon`, `diamond`. |
+| `--policy <name>` | `wcag-relaxed` | `wcag-relaxed`, `hue-first` or `wcag-strict` — see "The contrast model" above. |
+| `--name <string>` | the seed hex | Intent name, used for the token prefix. |
+| `--audit` | off | Adds a `findings` array (contrast, CVD, family and visibility checks) to the output. |
+
 ## Reading the output
 
 The Material Design 2 palette at 500 is offered as one-click seeds, since it is
