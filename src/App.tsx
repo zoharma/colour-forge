@@ -30,6 +30,10 @@ const THEME_ICONS: Record<ThemeChoice, typeof Monitor> = { system: Monitor, ligh
 
 const MODES: ModeKey[] = ["light", "dark"];
 
+const INTRO_TEXT =
+  "Turn one colour into a full role set, tuned independently for light and dark, then check it " +
+  "against APCA, WCAG 2.2 and colour-vision deficiency before it reaches a token file.";
+
 /** Seed, name and profile live in the URL so a colour under discussion can be
  *  sent to someone rather than described. Everything else is local taste. */
 function readUrlState() {
@@ -236,10 +240,7 @@ export function App() {
 
         {cvdView !== "none" ? (
           <div className="intro-row">
-            <p className="intro">
-              Turn one colour into a full role set, tuned independently for light and dark, then check
-              it against APCA, WCAG 2.2 and colour-vision deficiency before it reaches a token file.
-            </p>
+            <p className="intro">{INTRO_TEXT}</p>
             <p className="banner" aria-live="polite">
               <strong>Simulating {CVD_LABELS[cvdView].toLowerCase()}.</strong> {CVD_NOTES[cvdView]} Every
               number on the page is still measured from the real colours. Only what you see is
@@ -247,10 +248,7 @@ export function App() {
             </p>
           </div>
         ) : (
-          <p className="intro">
-            Turn one colour into a full role set, tuned independently for light and dark, then check it
-            against APCA, WCAG 2.2 and colour-vision deficiency before it reaches a token file.
-          </p>
+          <p className="intro">{INTRO_TEXT}</p>
         )}
 
         <section>
@@ -275,9 +273,10 @@ export function App() {
                 badge appears on any role where those disagreed.
               </p>
               <p className="section-note" style={{ marginBottom: 0 }}>
-                APCA targets run from Lc 45 for large or non-text elements up to Lc 75+ for body copy. WCAG
-                2.2 asks for a ratio of at least 3:1 for large text or non-text, 4.5:1 for normal body text,
-                and 7:1 where AAA is required.
+                APCA targets run from Lc 45 for non-text elements, Lc 60 for large text, up to Lc 75+ for
+                body copy — APCA scores those two differently even though WCAG doesn't. WCAG 2.2 asks for a
+                ratio of at least 3:1 for large text or non-text, 4.5:1 for normal body text, and 7:1 where
+                AAA is required.
               </p>
             </div>
           </details>
@@ -344,7 +343,7 @@ export function App() {
             </div>
 
             <div style={{ marginTop: 16 }}>
-              <span className="field-label">Accessibility type</span>
+              <span className="field-label">Contrast policy</span>
               <div className="segmented" role="group" aria-label="Contrast policy">
                 {(["hue-first", "wcag-relaxed", "wcag-strict"] as ContrastPolicy[]).map((p) => (
                   <button key={p} type="button" aria-pressed={policy === p} onClick={() => setPolicy(p)}>
@@ -358,7 +357,7 @@ export function App() {
             <details className="advanced" style={{ marginTop: 18 }}>
               <summary>
                 <ChevronRight className="advanced-chevron" size={14} aria-hidden="true" />
-                Advanced: seed placement &amp; raw values
+                Advanced: seed placement, raw values &amp; profile provenance
               </summary>
               <div className="advanced-body">
                 <div style={{ marginTop: 14 }}>
