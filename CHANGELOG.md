@@ -4,29 +4,31 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.5.5] - 2026-09-21
 
 ### Changed
 
 - Renamed the "Full WCAG 2.2" contrast policy to "WCAG Strict" in the policy
-  picker, to read as a name rather than a claim of full standard coverage,
-  and updated the policy's URL slug (`full-wcag` → `wcag-strict`) to match,
-  so a shared link still reads like the tab it came from. A link made before
-  this rename still resolves to WCAG Strict — the old slug stays recognised,
-  just never generated.
+  picker, so it reads as a name rather than a claim of full standard
+  coverage. Its URL slug changed to match (`full-wcag` → `wcag-strict`); a
+  link made before the rename still resolves correctly, the old slug just
+  isn't generated anymore.
 - Documented the contrast policy's three invariants in the README (the WCAG
   floor always holds, the default's concession never drops more than one
   level, the audit's blockers always agree with the solver's own verdict),
-  with pointers to the tests that enforce each one.
+  each with a pointer to the test that enforces it.
 - Added Radix Colors' 28 core hues as a second reference palette alongside
-  Material's 19, and swept the contrast-policy and audit test suites against
-  both together — Radix leans much further into muted, earthy tones than
-  Material does, which the solver and audit were previously never checked
-  against. No behaviour or calculation changed; this is test coverage only.
-- Fixed the "How the target contrast is chosen" explainer text, which
-  claimed the solver never drops below WCAG 2.2 — true only under WCAG
-  Strict. It now names the actual floor per policy, including System
-  default's one-level concession.
+  Material's 19, and swept the contrast-policy and audit suites against
+  both — Radix leans much further into muted, earthy tones than Material,
+  which was previously untested territory. No behaviour or calculation
+  changed; this is test coverage only.
+
+### Fixed
+
+- The "How the target contrast is chosen" explainer claimed the solver
+  never drops below WCAG 2.2 — true only under WCAG Strict. It now names
+  the actual floor per policy, including System default's one-level
+  concession.
 
 ## [0.5.4] - 2026-09-17
 
