@@ -4,7 +4,8 @@ import { apcaHex, apcaYHex } from "./apca";
 import { hexToOklch } from "./oklch";
 import { pinnedCurves, pinnedStep, type PinSpec } from "./pin";
 import {
-  RAMP_INVERSION_TOLERANCE,
+  DEFAULT_CONTRAST_POLICY,
+  isRampInversion,
   retreatWithinBound,
   solveStep,
   type ContrastPolicy,
@@ -40,7 +41,7 @@ export function generateScale(
   profile: Profile,
   mode: ModeKey,
   seedHex: string,
-  policy: ContrastPolicy = "wcag-relaxed",
+  policy: ContrastPolicy = DEFAULT_CONTRAST_POLICY,
   pin?: PinSpec,
 ): SolvedStep[] {
   const { H, C } = hexToOklch(seedHex);
@@ -117,7 +118,7 @@ function separateCollapsedSteps(
     const prev = steps[i - 1]!;
     const cur = steps[i]!;
     const gap = Math.abs(cur.lc) - Math.abs(prev.lc);
-    if (gap < RAMP_INVERSION_TOLERANCE || gap >= STEP_SEPARATION) continue;
+    if (isRampInversion(gap) || gap >= STEP_SEPARATION) continue;
 
     if (cur.verdict === "hue-protected") {
       steps[i] = retreatStep(cur, ctxs[i]!, Math.abs(prev.lc));
@@ -255,7 +256,7 @@ export function foregroundCandidates(
   surfaceHex: string,
   seedHex: string,
   requirement: WcagRequirement = "body",
-  policy: ContrastPolicy = "wcag-relaxed",
+  policy: ContrastPolicy = DEFAULT_CONTRAST_POLICY,
   role?: RoleDef,
   shareForegroundOf?: { hex: string; label: string },
 ): ForegroundCandidate[] {
@@ -451,7 +452,7 @@ export function buildDraft(
   profile: Profile,
   name: string,
   seedHex: string,
-  policy: ContrastPolicy = "wcag-relaxed",
+  policy: ContrastPolicy = DEFAULT_CONTRAST_POLICY,
   pin?: PinSpec,
 ): Draft {
   const forMode = (mode: ModeKey): ModeResult => {

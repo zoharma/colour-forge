@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { POLICY_SLUGS, DEFAULT_POLICY, policyFromSlug } from "../src/urlPolicySlug";
-import type { ContrastPolicy } from "../src/color/solver";
+import { POLICY_SLUGS, policyFromSlug } from "../src/urlPolicySlug";
+import { DEFAULT_CONTRAST_POLICY, type ContrastPolicy } from "../src/color/solver";
 
 describe("policy URL slugs", () => {
   it("round-trips every current policy through its own slug", () => {
@@ -19,7 +19,7 @@ describe("policy URL slugs", () => {
   });
 
   it("falls back to the default for an unrecognised or missing slug", () => {
-    expect(policyFromSlug("not-a-real-slug")).toBe(DEFAULT_POLICY);
-    expect(policyFromSlug(null)).toBe(DEFAULT_POLICY);
+    expect(policyFromSlug("not-a-real-slug")).toBe(DEFAULT_CONTRAST_POLICY);
+    expect(policyFromSlug(null)).toBe(DEFAULT_CONTRAST_POLICY);
   });
 });

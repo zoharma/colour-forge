@@ -58,6 +58,10 @@ export const POLICY_LABELS: Record<ContrastPolicy, string> = {
   "wcag-strict": "WCAG Strict",
 };
 
+/** "System default" — the one real compromise, so it's what every caller
+ *  gets unless it asks for one of the two extremes. */
+export const DEFAULT_CONTRAST_POLICY: ContrastPolicy = "wcag-relaxed";
+
 export const POLICY_DESCRIPTIONS: Record<ContrastPolicy, string> = {
   "hue-first": "Keeps the hue and its chroma, taking WCAG 2.2 only where it's free.",
   "wcag-relaxed": "Balances the two: drops one contrast level rather than fully chase the hue, where they conflict.",
@@ -137,9 +141,12 @@ export interface SolvedStep {
  *  orange recognisably orange at a small contrast cost. */
 export const CHROMA_RETENTION_FLOOR = 0.85;
 
-/** Below this (negative) Lc gap, a ramp has doubled back. Shared by
- *  `scale.ts` and `audit.ts` so they can't disagree on where that line sits. */
+/** Below this (negative) Lc gap, a ramp has doubled back. */
 export const RAMP_INVERSION_TOLERANCE = -0.5;
+
+/** Shared by `scale.ts` and `audit.ts` so they can't disagree on whether a
+ *  gap counts as an inversion. */
+export const isRampInversion = (gap: number): boolean => gap < RAMP_INVERSION_TOLERANCE;
 
 /** Retention alone is the wrong trigger: it's a ratio and says nothing
  *  about how much colour is actually at stake. Near white the sRGB gamut

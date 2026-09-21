@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildDraft } from "../src/color/scale";
+import { buildDraft, type Draft } from "../src/color/scale";
 import { hexToOklch } from "../src/color/oklch";
 import { solveStep, effectiveRequirement, type ContrastPolicy } from "../src/color/solver";
 import { wcagRatioHex, permittedUsage, oneLevelDown, meetsWcag, type WcagRequirement } from "../src/color/wcag";
@@ -314,16 +314,20 @@ describe("the generic profile has no comparison family", () => {
 });
 
 describe("the exemption is never free", () => {
-  // Both properties below read the same hue-first/wcag-strict draft pair,
-  // so it's computed once per (profile, seed) and shared.
-  const draftPairs = PROFILES.flatMap((profile) =>
-    REFERENCE_PALETTE.map(({ hex: seed }) => ({
-      profile,
-      seed,
-      relaxed: buildDraft(profile, "x", seed, "hue-first"),
-      strict: buildDraft(profile, "x", seed, "wcag-strict"),
-    })),
-  );
+  // Both properties below read the same hue-first/wcag-strict draft pair.
+  // Lazy, not computed at describe-scope, so filtering to just one of these
+  // two tests doesn't still pay for both drafts.
+  type DraftPair = { profile: (typeof PROFILES)[number]; seed: string; relaxed: Draft; strict: Draft };
+  let draftPairsCache: DraftPair[] | undefined;
+  const draftPairs = (): DraftPair[] =>
+    (draftPairsCache ??= PROFILES.flatMap((profile) =>
+      REFERENCE_PALETTE.map(({ hex: seed }) => ({
+        profile,
+        seed,
+        relaxed: buildDraft(profile, "x", seed, "hue-first"),
+        strict: buildDraft(profile, "x", seed, "wcag-strict"),
+      })),
+    ));
 
   it("only drops below a requirement where doing so buys visible chroma", () => {
     // The invariant that keeps a loosened policy from being a blanket
@@ -337,7 +341,7 @@ describe("the exemption is never free", () => {
     // once triggering the exemption it was meant to check.
     let exemptions = 0;
 
-    for (const { profile, seed, relaxed, strict } of draftPairs) {
+    for (const { profile, seed, relaxed, strict } of draftPairs()) {
       for (const mode of ["light", "dark"] as const) {
         for (const role of profile.roles) {
           const loose = relaxed[mode].roles[role.key];
@@ -359,7 +363,7 @@ describe("the exemption is never free", () => {
   });
 
   it("leaves the strict policy fully conformant across the whole palette", () => {
-    for (const { profile, strict } of draftPairs) {
+    for (const { profile, strict } of draftPairs()) {
       for (const mode of ["light", "dark"] as const) {
         for (const role of profile.roles) {
           const step = strict[mode].roles[role.key];

@@ -1,4 +1,4 @@
-import type { ContrastPolicy } from "./color/solver";
+import { DEFAULT_CONTRAST_POLICY, type ContrastPolicy } from "./color/solver";
 
 /** The URL uses the same names as the policy tabs, not the engine's internal
  *  ids — a link should read like what was clicked. */
@@ -18,8 +18,6 @@ const POLICY_FROM_SLUG: Record<string, ContrastPolicy> = {
   ...Object.fromEntries(Object.entries(POLICY_SLUGS).map(([policy, slug]) => [slug, policy as ContrastPolicy])),
 };
 
-export const DEFAULT_POLICY: ContrastPolicy = "wcag-relaxed";
-
 export function policyFromSlug(slug: string | null): ContrastPolicy {
-  return POLICY_FROM_SLUG[slug ?? ""] ?? DEFAULT_POLICY;
+  return POLICY_FROM_SLUG[slug ?? ""] ?? DEFAULT_CONTRAST_POLICY;
 }

@@ -93,16 +93,17 @@ test, not a handful of chosen examples:
    active policy actually concedes (its `effectiveRequirement`), across the
    full hue circle, every requirement level, and both background polarities —
    the one exception being a hue that can't clear even that eased floor,
-   which the solver reports as `fails` rather than faking a result.
+   which the solver reports as `below-both` rather than faking a result.
 2. **The default's concession is bounded.** Under System default, a role that
    misses its real requirement still clears the *next* level down, never
    further, at any hue.
 3. **The audit says exactly what the solver decided.** Whether a role is
    reported as a blocker is read off the solver's own verdict, not decided a
    second time — checked by deriving the expected finding from that verdict
-   and diffing it against the audit's real output, across every profile and
-   two independently-designed reference palettes (Material's core 19 hues and
-   Radix Colors' 28, which leans much further into muted, earthy tones).
+   and diffing it against the audit's real output, across every profile and a
+   stratified sample of two independently-designed reference palettes
+   (Material's core 19 hues and Radix Colors' 28, which leans much further
+   into muted, earthy tones).
 
 Rules 1 and 2 live in `test/contrast-policy.test.ts`; rule 3 is the `audit`
 block in `test/color.test.ts`. Together they're the thread that ties the

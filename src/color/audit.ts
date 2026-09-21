@@ -10,7 +10,7 @@ import { CVD_SEPARATION_COMFORTABLE, CVD_SEPARATION_FLOOR, worstCvdSeparation } 
 import { hexToOklch, hueDelta } from "./oklch";
 import { rgbDistanceHex } from "./srgb";
 import { chosenForeground, type Draft } from "./scale";
-import { RAMP_INVERSION_TOLERANCE } from "./solver";
+import { isRampInversion } from "./solver";
 import { WCAG_CRITERION, meetsWcag, permittedUsage, wcagRatioHex } from "./wcag";
 import {
   displayStep,
@@ -429,7 +429,7 @@ function rampFindings(profile: Profile, draft: Draft): Finding[] {
         .map((r) => r.label);
       const roleSuffix = roles.length ? ` (${roles.join(", ")})` : "";
 
-      if (gap < RAMP_INVERSION_TOLERANCE) {
+      if (isRampInversion(gap)) {
         findings.push({
           id: `ramp-inversion-${mode}-${i}`,
           severity: "warning",

@@ -13,7 +13,7 @@ import {
 import {
   solveStep,
   CHROMA_RETENTION_FLOOR,
-  RAMP_INVERSION_TOLERANCE,
+  isRampInversion,
   type StepContext,
   type ContrastPolicy,
 } from "../src/color/solver";
@@ -298,6 +298,12 @@ describe("solver: APCA target with a WCAG floor", () => {
   });
 });
 
+/** No inversion in the current sweep exceeds ~27 Lc (a real yellow seed,
+ *  hue-protection pulling hard against a WCAG-held neighbour); double that
+ *  for headroom. Not a promise the solver makes, just a catastrophe
+ *  backstop — the audit-attribution check below is the real contract. */
+const RAMP_INVERSION_CEILING = -55;
+
 /** A synthetic hue circle at a representative mid lightness/chroma, standing
  *  in for "some hue nobody named" the way the audit's own hue sweep does. */
 const HUE_SWEEP_SEEDS = (() => {
@@ -353,11 +359,15 @@ describe("scale generation", () => {
             const lcs = scale.map((s) => Math.abs(s.lc));
             for (let i = 1; i < lcs.length; i++) {
               const gap = (lcs[i] as number) - (lcs[i - 1] as number);
-              if (gap >= RAMP_INVERSION_TOLERANCE) continue;
+              if (!isRampInversion(gap)) continue;
               expect(
                 inversions.has(`ramp-inversion-${mode}-${i}`),
                 `${profile.id}/${mode}/${seed} step ${i} doubled back (gap ${gap.toFixed(1)}) with no audit finding to show for it`,
               ).toBe(true);
+              expect(
+                gap,
+                `${profile.id}/${mode}/${seed} step ${i} inverted catastrophically (gap ${gap.toFixed(1)})`,
+              ).toBeGreaterThan(RAMP_INVERSION_CEILING);
             }
           }
         }
