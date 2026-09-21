@@ -45,13 +45,11 @@ export interface RoleDef {
   /** How far this role must stay from the same role on other intents —
    *  Euclidean distance in OKLab — under simulated colour-vision deficiency.
    *
-   *  Not one number for the whole system, because the question the floor
-   *  answers is "if two intents differed only here, would a user lose
-   *  information?" — and for a quiet tinted wash the answer is no. Two
-   *  containers being similar is how container systems are built; it is the
-   *  icon and the label that carry the meaning, not the wash. Applying a
-   *  meaning-bearing floor to them condemns every real palette and buries
-   *  the findings that matter. Defaults in SEPARATION_FLOOR below. */
+   *  Not one number for the whole system: the question is "if two intents
+   *  differed only here, would a user lose information?", and for a quiet
+   *  tinted wash the answer is no — containers being similar is normal, the
+   *  icon/label carries the meaning. A meaning-bearing floor there condemns
+   *  every real palette. Defaults in SEPARATION_FLOOR below. */
   separationFloor?: number;
   description: string;
 }
@@ -127,17 +125,12 @@ export interface Profile {
 export const roleByKey = (profile: Profile, key: string): RoleDef | undefined =>
   profile.roles.find((r) => r.key === key);
 
-/** Default CVD separation floors, by whether the role has a contrast duty of
- *  its own. A role that must clear a WCAG criterion is one whose colour
- *  carries meaning — text, a border, a filled action — so two intents landing
- *  on the same colour there is a real loss. A role with no requirement is a
- *  background wash, where similarity is normal and only an outright duplicate
- *  is worth mentioning.
- *
- *  Both values (and `CVD_SEPARATION_FLOOR` in cvd.ts, which `meaningBearing`
- *  matches) were picked the same way: least-disruptive against every shipped
- *  profile's own family under the OKLab separation metric — see the doc
- *  comment on `CVD_SEPARATION_FLOOR`. */
+/** Default CVD separation floors, by contrast duty: a role with a WCAG
+ *  criterion carries meaning (text, a border, a fill), so two intents
+ *  landing on the same colour is a real loss; a role with none is a
+ *  background wash, where only an outright duplicate is worth mentioning.
+ *  Picked the same way as `CVD_SEPARATION_FLOOR` in cvd.ts (which
+ *  `meaningBearing` matches) — see its doc comment. */
 export const SEPARATION_FLOOR = { meaningBearing: 0.016, wash: 0.01 } as const;
 
 export const separationFloorFor = (role: RoleDef): number =>

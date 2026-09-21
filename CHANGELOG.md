@@ -4,6 +4,32 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.5] - 2026-09-21
+
+### Changed
+
+- Renamed the "Full WCAG 2.2" contrast policy to "WCAG Strict" in the policy
+  picker, so it reads as a name rather than a claim of full standard
+  coverage. Its URL slug changed to match (`full-wcag` → `wcag-strict`); a
+  link made before the rename still resolves correctly, the old slug just
+  isn't generated anymore.
+- Documented the contrast policy's three invariants in the README (the WCAG
+  floor always holds, the default's concession never drops more than one
+  level, the audit's blockers always agree with the solver's own verdict),
+  each with a pointer to the test that enforces it.
+- Added Radix Colors' 28 core hues as a second reference palette alongside
+  Material's 19, and swept the contrast-policy and audit suites against
+  both — Radix leans much further into muted, earthy tones than Material,
+  which was previously untested territory. No behaviour or calculation
+  changed; this is test coverage only.
+
+### Fixed
+
+- The "How the target contrast is chosen" explainer claimed the solver
+  never drops below WCAG 2.2 — true only under WCAG Strict. It now names
+  the actual floor per policy, including System default's one-level
+  concession.
+
 ## [0.5.4] - 2026-09-17
 
 ### Changed
@@ -22,7 +48,7 @@ All notable changes to this project are documented here. Format follows
   the real intermediate coefficients are not a linear interpolation
   (tritanomaly's in particular are non-monotonic partway through), so the
   old approximation was measurably a different, less accurate curve.
-  
+
 ## [0.5.3] - 2026-09-17
 
 ### Fixed

@@ -53,22 +53,13 @@ const MATRICES: Record<CvdType, number[][]> = {
   ],
 };
 
-/** Anomalous trichromacy is partial, not total, loss of a cone type. Machado,
- *  Oliveira & Fernandes (2009) — the same model `MATRICES` above are the
- *  100%-severity case of — publish the intermediate matrices directly rather
- *  than as a curve to interpolate: their physiologically-based model does not
- *  vary linearly between identity and the dichromat transform (tritanomaly's
- *  own coefficients are non-monotonic partway through the range), so blending
- *  toward identity by eye — as this file used to, before this table replaced
- *  it — is a different, less accurate curve than the one actually measured.
- *  These are their published severity-0.6 matrices (0.6 sits in the
- *  "moderate-to-strong" range reported for anomalous trichromacy and is the
- *  severity other simulators, e.g. Coblis, commonly use for these labels),
- *  reproduced from the colour-science library's `CVD_MATRICES_MACHADO2010`
- *  dataset, which cites Machado (2010) directly. Achromatomaly has no
- *  equivalent published table — the 2009 model covers the three dichromacies
- *  and their anomalous forms only — so it stays a severity-blended luminance
- *  collapse below. */
+/** Anomalous trichromacy is partial cone loss, not total — Machado (2010)
+ *  publishes the intermediate matrices directly rather than as a curve,
+ *  since the real model doesn't interpolate linearly (tritanomaly is
+ *  non-monotonic partway through). These are the published severity-0.6
+ *  matrices (the "moderate-to-strong" range other simulators use too),
+ *  from colour-science's `CVD_MATRICES_MACHADO2010`. Achromatomaly has no
+ *  published table, so it stays a severity-blended luminance collapse below. */
 const ANOMALY_SEVERITY = 0.6;
 
 const ANOMALY_MATRICES: Record<CvdAnomalyType, number[][]> = {
@@ -120,13 +111,9 @@ export function simulateCvdHex(hex: string, view: CvdView): string {
   return rgb255ToHex(linearToRgb255(applyMatrix(m, lin)));
 }
 
-/** Euclidean distance in OKLab, the perceptually-even space the rest of this
- *  tool already reasons about hue and lightness in — not raw 8-bit RGB. RGB
- *  distance weighs each channel equally regardless of how visible a shift in
- *  it actually is, so it both overstates separation for pairs that only
- *  differ in a channel the eye is poor at judging and understates it for
- *  small perceptually-large shifts (a lightness change reads as more
- *  separation than the same-sized hue change at the same RGB distance). */
+/** Euclidean distance in OKLab, not raw RGB — RGB weighs every channel
+ *  equally regardless of how visible a shift in it actually is, over- and
+ *  under-stating separation depending which channel moved. */
 function oklabDistance(hexA: string, hexB: string): number {
   const a = linearToOklab(hexToLinear(hexA));
   const b = linearToOklab(hexToLinear(hexB));
@@ -134,28 +121,20 @@ function oklabDistance(hexA: string, hexB: string): number {
 }
 
 /** Below this, two colours read as effectively the same under that
- *  deficiency. Empirical rather than standardised — it is a threshold for
- *  raising a question, not a conformance line.
+ *  deficiency — a threshold for raising a question, not a conformance line.
  *
- *  RGB distance and OKLab distance measure different things closely enough
- *  that there is no unit conversion from the old floor (15, on the 0–441 RGB
- *  scale) to this one — a straight ratio, tried first, flagged nearly every
- *  shipped profile's own family as colliding with itself. Picked instead by
- *  gathering every same-role, same-mode pair across every shipped profile's
- *  family, splitting them by whether the *old* metric considered the pair
- *  fine or already flagged it, and choosing the value that keeps the false-
- *  positive rate against already-shipped, presumably-reviewed palettes low
- *  (this floor mis-classifies roughly 1 in 200 previously-fine pairs) while
- *  still catching a majority of what the old metric already flagged.
+ *  No unit conversion exists from the old RGB-scale floor (a straight ratio
+ *  flagged nearly every shipped family as self-colliding), so this was
+ *  picked empirically: gather every same-role pair across every shipped
+ *  family, split by whether the old metric flagged it, and pick the value
+ *  with a low false-positive rate against those already-shipped palettes
+ *  (~1 in 200 mis-classified) while still catching most of what the old
+ *  metric caught.
  *
- *  This is deliberately conservative: it inherits the old metric's
- *  blind spots on the pairs it still misses, rather than surfacing every
- *  pair OKLab disagrees with the RGB metric about. A pair the RGB metric
- *  missed and OKLab would have caught stays unflagged here — the more
- *  aggressive threshold that would catch those flagged an unreviewed amount
- *  of noise against real, currently-shipped families and needs a person
- *  looking at specific pairs in an actual CVD simulator to validate, not a
- *  blanket recalibration. */
+ *  Deliberately conservative — it inherits the old metric's blind spots
+ *  rather than surfacing every pair OKLab disagrees about, since a more
+ *  aggressive threshold needs a person validating specific pairs in a real
+ *  CVD simulator, not a blanket recalibration. */
 export const CVD_SEPARATION_FLOOR = 0.016;
 export const CVD_SEPARATION_COMFORTABLE = 0.027;
 

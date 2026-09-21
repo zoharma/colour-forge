@@ -12,6 +12,7 @@ import { buildDraft } from "./color/scale";
 import { suggestPin, type PinSpec } from "./color/pin";
 import { isValidHex, normaliseHex } from "./color/srgb";
 import { DEFAULT_PROFILE_ID, PROFILES, findProfile, type ModeKey, type SeededIntent } from "./profiles";
+import { POLICY_SLUGS, policyFromSlug } from "./urlPolicySlug";
 import { CVD_LABELS } from "./color/cvd";
 import { CvdControl, CVD_NOTES } from "./ui/CvdControl";
 import { ExportPanel } from "./ui/ExportPanel";
@@ -29,17 +30,6 @@ const THEME_ICONS: Record<ThemeChoice, typeof Monitor> = { system: Monitor, ligh
 
 const MODES: ModeKey[] = ["light", "dark"];
 
-/** The URL uses the same names as the policy tabs, not the engine's internal
- *  ids — a link should read like what was clicked. */
-const POLICY_SLUGS: Record<ContrastPolicy, string> = {
-  "hue-first": "more-apca",
-  "wcag-relaxed": "system-default",
-  "wcag-strict": "full-wcag",
-};
-const POLICY_FROM_SLUG: Record<string, ContrastPolicy> = Object.fromEntries(
-  Object.entries(POLICY_SLUGS).map(([policy, slug]) => [slug, policy as ContrastPolicy]),
-);
-
 /** Seed, name and profile live in the URL so a colour under discussion can be
  *  sent to someone rather than described. Everything else is local taste. */
 function readUrlState() {
@@ -48,7 +38,7 @@ function readUrlState() {
   return {
     profileId: params.get("profile") ?? DEFAULT_PROFILE_ID,
     name: params.get("name") ?? "draft",
-    policy: POLICY_FROM_SLUG[params.get("policy") ?? ""] ?? "wcag-relaxed",
+    policy: policyFromSlug(params.get("policy")),
     pin: parsePin(params.get("pin")),
     // Not one of the example intents: seeding on top of one opens the tool
     // onto a wall of collisions with itself, which reads as the tool being
@@ -280,8 +270,9 @@ export function App() {
               <p className="section-note" style={{ marginTop: 12 }}>
                 The seed's hue and chroma drive a {profile.scaleSize}-step scale solved separately for each
                 mode. Each step aims at an APCA target, eases off only as far as that hue needs to stay
-                recognisable, and never drops below what WCAG 2.2 requires for how the role is used. A badge
-                appears on any role where those disagreed.
+                recognisable, and never drops below what the active policy requires — the full WCAG 2.2
+                floor under WCAG Strict, one level less under System default, no floor under More APCA. A
+                badge appears on any role where those disagreed.
               </p>
               <p className="section-note" style={{ marginBottom: 0 }}>
                 APCA targets run from Lc 45 for large or non-text elements up to Lc 75+ for body copy. WCAG

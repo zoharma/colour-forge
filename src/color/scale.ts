@@ -3,7 +3,16 @@
 import { apcaHex, apcaYHex } from "./apca";
 import { hexToOklch } from "./oklch";
 import { pinnedCurves, pinnedStep, type PinSpec } from "./pin";
-import { retreatWithinBound, solveStep, type ContrastPolicy, type SolvedStep, type StepContext } from "./solver";
+import {
+  DEFAULT_CONTRAST_POLICY,
+  isRampInversion,
+  lcGap,
+  retreatWithinBound,
+  solveStep,
+  type ContrastPolicy,
+  type SolvedStep,
+  type StepContext,
+} from "./solver";
 import { WCAG_MINIMUM, meetsWcag, wcagRatioHex, type WcagRequirement } from "./wcag";
 import type { ModeKey, Profile, RoleDef } from "../profiles/types";
 
@@ -33,7 +42,7 @@ export function generateScale(
   profile: Profile,
   mode: ModeKey,
   seedHex: string,
-  policy: ContrastPolicy = "wcag-relaxed",
+  policy: ContrastPolicy = DEFAULT_CONTRAST_POLICY,
   pin?: PinSpec,
 ): SolvedStep[] {
   const { H, C } = hexToOklch(seedHex);
@@ -86,19 +95,12 @@ export function generateScale(
  *  so a fix doesn't land right back on the line. */
 const STEP_SEPARATION = 2.5;
 
-/** Two steps can land within visual noise of each other even in the
- *  correct order: hue protection solves each step independently, snapping
- *  it to wherever this hue's chroma-retention floor happens to sit, and two
- *  different curve targets can both get pulled onto nearly the same point.
- *
- *  Only a step whose verdict is "hue-protected" is touched here — that is
- *  the one negotiable position in the pair. A `wcag-bound` step is holding
- *  a real requirement and does not move for this; a step already sitting
- *  on its own ideal target has nothing left to give back. Where the
- *  eligible step is retreated only as far toward its own ideal target as
- *  it takes to clear the gap — not all the way, and not past it. Where
- *  neither side is negotiable, the collision is real and the
- *  `ramp-collapse` finding is the honest answer, not a forced fix here. */
+/** Two curve targets can both get pulled toward the same chroma-retention
+ *  floor and land within visual noise of each other, even in order. Only a
+ *  `hue-protected` step is negotiable here — it retreats toward its own
+ *  ideal target just far enough to clear the gap. If neither side is
+ *  negotiable, the collision is real and `ramp-collapse` is the honest
+ *  answer, not a forced fix. */
 function separateCollapsedSteps(
   steps: SolvedStep[],
   ctxs: (StepContext | undefined)[],
@@ -109,8 +111,8 @@ function separateCollapsedSteps(
 
     const prev = steps[i - 1]!;
     const cur = steps[i]!;
-    const gap = Math.abs(cur.lc) - Math.abs(prev.lc);
-    if (gap < -0.5 || gap >= STEP_SEPARATION) continue;
+    const gap = lcGap(cur.lc, prev.lc);
+    if (isRampInversion(gap) || gap >= STEP_SEPARATION) continue;
 
     if (cur.verdict === "hue-protected") {
       steps[i] = retreatStep(cur, ctxs[i]!, Math.abs(prev.lc));
@@ -178,20 +180,13 @@ const APCA_TIE_LC = 3;
  *  from `bestByApca`/`bestByCompliance`. */
 const APCA_ACCEPTABLE_LC = 45;
 
-/** Which measure a surface role's foreground actually goes by.
- *
- *  "More APCA" and "Full WCAG 2.2" are absolute — every role's foreground
- *  follows the same measure the policy names, full stop. "System default"
- *  is where the balance is role-aware rather than a single number: a role
- *  that already carries its own real WCAG requirement (`solid`'s 3:1, say)
- *  has already had APCA decide how far it can push contrast without losing
- *  the hue, so its foreground trusts APCA too — WCAG's ratio is exactly
- *  what misjudges a saturated fill as darker or lighter than it reads, and
- *  a "compliant" foreground there can be the harder one to actually read.
- *  A role with no requirement of its own (`container`'s tint) has nothing
- *  pulling it toward a particular contrast, so its foreground defers to
- *  WCAG instead — the safer choice for a surface with no enforced floor,
- *  and it is what leaves room for the subtler, lighter shade. */
+/** Which measure a surface role's foreground goes by. "More APCA"/"WCAG
+ *  Strict" are absolute — every role follows the named measure. "System
+ *  default" is role-aware: a role with its own WCAG requirement (`solid`'s
+ *  3:1) already had APCA judge its contrast, so its foreground trusts APCA
+ *  too (WCAG's ratio misjudges a saturated fill). A role with no
+ *  requirement (`container`'s tint) has nothing pulling it, so it defers
+ *  to WCAG — the safer default, and it leaves room for a subtler shade. */
 function foregroundStrategy(policy: ContrastPolicy, roleRequirement: WcagRequirement): "apca" | "compliance" {
   if (policy === "hue-first") return "apca";
   if (policy === "wcag-strict") return "compliance";
@@ -218,7 +213,7 @@ function bestByApca<T extends { lc: number; meetsRequirement: boolean }>(candida
 /** A candidate that meets the requirement always beats one that doesn't,
  *  regardless of the APCA gap between them — APCA only breaks a tie among
  *  candidates on the same side of that line. Used for "System default" and
- *  "Full WCAG 2.2", where the policy's whole point is not shipping a
+ *  "WCAG Strict", where the policy's whole point is not shipping a
  *  foreground that fails. */
 function bestByCompliance<T extends { lc: number; meetsRequirement: boolean }>(candidates: T[]): T | undefined {
   let best: T | undefined;
@@ -248,7 +243,7 @@ export function foregroundCandidates(
   surfaceHex: string,
   seedHex: string,
   requirement: WcagRequirement = "body",
-  policy: ContrastPolicy = "wcag-relaxed",
+  policy: ContrastPolicy = DEFAULT_CONTRAST_POLICY,
   role?: RoleDef,
   shareForegroundOf?: { hex: string; label: string },
 ): ForegroundCandidate[] {
@@ -393,7 +388,7 @@ export function foregroundCandidates(
 
   // Which candidate gets recommended follows the same trust-APCA-or-hold-
   // WCAG split as the rest of the solver, because a role solved under
-  // "Full WCAG 2.2" and then paired with a foreground that fails WCAG would
+  // "WCAG Strict" and then paired with a foreground that fails WCAG would
   // break the one promise that policy makes. See `foregroundStrategy` for
   // how the split itself is decided.
   //
@@ -444,7 +439,7 @@ export function buildDraft(
   profile: Profile,
   name: string,
   seedHex: string,
-  policy: ContrastPolicy = "wcag-relaxed",
+  policy: ContrastPolicy = DEFAULT_CONTRAST_POLICY,
   pin?: PinSpec,
 ): Draft {
   const forMode = (mode: ModeKey): ModeResult => {
