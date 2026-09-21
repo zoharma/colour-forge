@@ -19,246 +19,139 @@ npm run build
 
 ## The contrast model
 
-Most palette tools pick one contrast measure and follow it off a cliff. Both
-of the available ones are wrong in a different direction:
+Palette tools that pick one contrast measure fail in different directions:
+pure APCA over-corrects saturated colours (a red pushed to its dark-mode
+target becomes a pale pink that's stopped being red), pure WCAG under- or
+over-corrects by lightness — but WCAG is still what a conformance audit
+checks, so it can't just be ignored.
 
-- **Pure APCA over-corrects at the saturated end.** Pushing a red to its
-  dark-mode Lc target makes it a pale pink that has stopped being red. The
-  number is satisfied and the colour is useless.
-- **Pure WCAG 2.x under-corrects in the midtones** and over-corrects at the
-  dark end, which is the whole reason APCA exists. But it is still what a
-  conformance audit is written against, so it cannot simply be ignored.
-
-So each step is solved to its APCA target, then allowed to ease off that
-target, only as far as that specific hue actually needs, measured live, to
-keep its chroma. It is **never taken below what WCAG 2.2 requires for how the
-role is used**. Every role reports which of the three decided it:
+Each step solves to its APCA target, then eases off — only as far as that
+hue needs, and only when it actually recovers chroma — never below what
+WCAG 2.2 requires for how the role is used. Every step reports which of the
+three decided it:
 
 | Verdict | Meaning |
 | --- | --- |
 | *(no badge)* | Reached the APCA target with the hue intact. |
 | `hue held` | Eased off APCA to stay recognisably this colour. Still clears WCAG 2.2. |
-| `WCAG held` | WCAG 2.2 forced more contrast than hue protection wanted, or than APCA asked for. More washed out than APCA alone would make it, on purpose. |
+| `WCAG held` | WCAG 2.2 forced more contrast than hue protection or APCA asked for. |
 | `fails` | No lightness of this hue clears WCAG 2.2 for this usage. |
 
-Making the compromise visible is the point. "Washed out" and "washed out for a
-reason" look identical in a swatch.
-
-The easing-off only happens when it *buys* something: near white the sRGB
-gamut holds almost no chroma, so a pale tint scores a terrible retention ratio
-while having nothing real to lose, and easing the target there pays full
-contrast for no gain. The solver checks that the relaxation actually recovers
-visible chroma before taking it.
+Making the compromise visible is the point: "washed out" and "washed out for
+a reason" look identical in a swatch.
 
 ### Missing AA on purpose
 
-Some hues cannot both clear the criterion and stay themselves. An orange or an
-amber has its identity in a narrow band of lightness, and 4.5:1 against a light
-page sits outside it: push to the ratio and you get a brown. Forcing
-conformance there does not produce an accessible orange. It produces a
-compliant brown, plus a designer who overrides the tool by hand and loses the
-record of why.
-
-So the conflict is a setting, defaulting to a real compromise between the
-two rather than either extreme:
+Some hues can't clear their WCAG criterion and stay themselves — an orange
+forced to 4.5:1 becomes a compliant brown, not an accessible orange. So the
+conflict is a setting, defaulting to a real compromise rather than either
+extreme:
 
 | Policy | Where hue and contrast conflict |
 | --- | --- |
-| **More APCA** | Solve to the APCA target and keep the hue's chroma, still taking full WCAG 2.2 conformance wherever it's free. Never trades chroma away to force it. |
-| **System default** | Drop one *named* level rather than take the full APCA-first result, so body text becomes large-text-only and a boundary becomes decorative. Bounded, not arbitrary — the balance between the two extremes. |
-| **WCAG Strict** | Never return a colour below the role's requirement, no matter what it costs the hue. |
+| **More APCA** | Solve to the APCA target, keep the hue's chroma. Never trades chroma away to force conformance. |
+| **System default** | Drop one *named* level (body text → large-text-only) rather than take the full APCA-first result. |
+| **WCAG Strict** | Never return a colour below the role's requirement, whatever it costs the hue. |
 
-Two guards stop this becoming a blanket downgrade, which is the failure mode
-that would make it worse than useless:
+Two guards keep this from becoming a blanket downgrade: it only fires on a
+genuine conflict (an unaffected hue is byte-identical under all three
+policies), and the exemption must recover at least 0.02 of OKLab chroma —
+measured across Material's 19 core hues, only amber, lime and yellow ever
+need it.
 
-- **It only fires on a genuine conflict.** A hue that can meet its requirement
-  and stay itself is byte-identical under all three policies.
-- **The exemption must buy something.** Giving up conformance has to gain at
-  least 0.02 of OKLab chroma. Left ungated a blue will happily trade AA for
-  0.013 of chroma that nobody can see. Measured across Material's 19 core
-  hues, three need the exemption somewhere in the role set (amber, lime and
-  yellow) and the other sixteen are untouched.
+A colour below its requirement is reported as a **blocker**, not a note, and
+the same explanation is written into the exported CSS so it survives the
+paste into a token file.
 
-Anything below its requirement is a **blocker**, not a note: it is a decision
-that has to reach whoever implements it. The audit names what the ratio is
-legal for and what obligation comes with it, and the same note is written into
-the exported CSS so it survives the paste into a token file.
+The three claims above are swept property tests, not chosen examples: the
+floor always holds across the full hue circle, the default's concession
+never goes past one level, and the audit reports exactly what the solver
+decided (`test/contrast-policy.test.ts`, the `audit` block in
+`test/color.test.ts`) — checked against Material's 19 core hues and Radix
+Colors' 28.
 
-### Checked as invariants, not just described
-
-The three claims above aren't only documented — each is a swept property
-test, not a handful of chosen examples:
-
-1. **The floor always holds.** A step never returns a ratio below what the
-   active policy actually concedes (its `effectiveRequirement`), across the
-   full hue circle, every requirement level, and both background polarities —
-   the one exception being a hue that can't clear even that eased floor,
-   which the solver reports as `below-both` rather than faking a result.
-2. **The default's concession is bounded.** Under System default, a role that
-   misses its real requirement still clears the *next* level down, never
-   further, at any hue.
-3. **The audit says exactly what the solver decided.** Whether a role is
-   reported as a blocker is read off the solver's own verdict, not decided a
-   second time — checked by deriving the expected finding from that verdict
-   and diffing it against the audit's real output, across every profile and a
-   stratified sample of two independently-designed reference palettes
-   (Material's core 19 hues and Radix Colors' 28, which leans much further
-   into muted, earthy tones).
-
-Rules 1 and 2 live in `test/contrast-policy.test.ts`; rule 3 is the `audit`
-block in `test/color.test.ts`. Together they're the thread that ties the
-policy described above to the solver that implements it to the audit that
-reports on it — a change to any one of the three that breaks its promise to
-the others fails a test, not just a review.
-
-### System default picks its measure per role, not globally
-
-The same "real compromise, not either extreme" idea decides which measure to
-*trust* when choosing a foreground for a surface, and it depends on what that
-surface actually is:
-
-- **A solid fill already carries a real WCAG requirement** (a button answers
-  to 1.4.11 at 3:1 on its own). With that floor already enforced, APCA is the
-  better judge of which candidate is genuinely legible on it — WCAG's ratio
-  alone will happily recommend a black that reads as "passing" and unreadably
-  harsh against a saturated tint.
-- **A quiet container has no requirement of its own.** With nothing forcing a
-  floor, WCAG's ratio is the safer default there: it favours a subtler,
-  lighter tint over the darkest, most-legible-by-APCA option that a container
-  does not need.
-
-So under System default, a role with a real requirement trusts APCA; a role
-without one trusts WCAG. More APCA and WCAG Strict pick one measure for
-every role instead. Either way, a candidate is only shown as struck through
-when it fails the measure actually being trusted for that role, not raw WCAG
-pass/fail — an option that reads fine by APCA is never crossed out just
-because its ratio is short of 4.5:1.
+Choosing a foreground follows the same "real compromise" logic per role,
+not globally: a solid fill already carries its own WCAG floor, so APCA is
+the better judge of which candidate is genuinely legible on it; a quiet
+container has no floor of its own, so WCAG's ratio picks the safer, subtler
+tint. A candidate is only struck through when it fails whichever measure is
+actually trusted for that role.
 
 ## Pinning the seed to a role
 
-Sometimes the colour is not a suggestion. A brand colour arrives fixed and the
-job is "this exact hex has to be the button fill, build the rest around it",
-which is a different question from "here is a hue, give me a ramp".
+Sometimes a colour is fixed — a brand hex has to be the button fill — rather
+than a hue to build a ramp from. Off by default, and pinning fixes **one
+role in one mode**: a single hex can't be right against both a white and a
+near-black page, so pinning both modes at once leaves whichever mode nobody
+was looking at wrong. The other mode still solves independently, which is
+the point of solving the two separately at all.
 
-Off by default, and it pins **one role in one mode**. That constraint is the
-whole feature: a single hex cannot be right against both a white page and a
-near-black one, so pinning both modes at once leaves whichever mode nobody was
-looking at wrong. The unpinned mode is solved exactly as it would be
-otherwise, which is the point of solving the two independently at all.
+The tool always suggests where a colour would sit, even when nothing is
+pinned — seeding Diamond's own `#0a858e` reports "closest to Solid in dark",
+which is where Diamond ships it.
 
-The tool suggests where the colour would sit rather than deciding. That is
-useful even when you then pin nothing: seeding Diamond's own `#0a858e` reports
-"closest to Solid in dark", which is where Diamond in fact ships it.
-
-Two things it does not do:
-
-- **It does not exempt the colour from being checked.** A pinned value that
-  cannot carry its role is the most useful thing the tool can tell you, so it
-  is measured like anything else and reported as a blocker that names the way
-  out.
-- **It does not let the ramp double back.** Pinning remaps each half of the
-  target curve into the space the pinned step leaves it, so the endpoints stay
-  where the profile put them and no two steps collapse onto one colour. Where
-  a neighbouring step is held out by its own WCAG floor and the ramp inverts
-  anyway, that is reported rather than shipped quietly.
+Pinning doesn't exempt a colour from being checked — a pinned value that
+can't carry its role is reported as a blocker that names the way out — and
+it doesn't let the ramp double back: remapping keeps the endpoints fixed and
+reports an inversion rather than shipping it quietly.
 
 ### WCAG requirements come from usage
 
-"Is 4.5:1 required here" is a question about how a role is used, not about the
-colour. Each role in a profile declares its usage, and that decides what it has
-to clear: text answers to 1.4.3 at 4.5:1, borders and filled actions to 1.4.11
-at 3:1, and a quiet tinted wash to nothing on its own. Its paired foreground
-carries the requirement instead.
+"Is 4.5:1 required here" is a question about how a role is used, not about
+the colour. Each role declares its usage, and that decides what it must
+clear: text answers to 1.4.3 at 4.5:1, borders and filled actions to 1.4.11
+at 3:1, a quiet tinted wash to nothing on its own (its paired foreground
+carries the requirement instead).
 
 ### Colour-vision deficiency
 
-Simulation is Machado, Oliveira & Fernandes (2009) at 100% severity, applied
-in linear light, and can be switched on across every swatch, table and preview
-at once. All measurements stay computed from the real colours: simulating and
-then measuring would report contrast for vision nobody has.
+Simulation is Machado, Oliveira & Fernandes (2009) at 100% severity, in
+linear light, toggleable across every swatch, table and preview at once.
+Measurements always come from the real colours — simulating and then
+measuring would report contrast for vision nobody has.
 
-The separation floor is **not one number for the whole system**. A role that
-must clear a WCAG criterion is carrying meaning, so two intents landing on the
-same colour there is a real loss (floor 15, blocker). A quiet wash sits close
-to every other wash in every real palette. Diamond ships `tertiary` and
-`brand` containers 3 apart on the 0 to 441 scale, so holding those to the same
-floor condemns the entire container system and buries the findings that matter
-(floor 6, warning).
+The separation floor isn't one number for the whole system: a role that
+carries a WCAG requirement is carrying meaning, so two intents landing on
+the same colour there is a real loss (floor 15, blocker). A quiet wash sits
+close to every other wash in every real palette — Diamond ships `tertiary`
+and `brand` containers 3 apart on a 0–441 scale — so holding washes to the
+same floor would condemn the whole container system (floor 6, warning).
 
 ## Profiles
 
-A profile is the whole of what makes the tool specific to a design system:
-role names, what each role is used for, which scale step it takes in each
-mode, the CSS naming convention, and the existing intents to check against.
+A profile is what makes the tool specific to one design system: role names,
+what each is used for, which scale step it claims per mode, CSS naming, and
+the existing intents to check a new colour against. The
+`targetLc`/`chromaMultiplier` curve is **not** part of that — every profile
+shares one curve, tuned once against a sweep of Material's 19 hues. A
+profile's character comes from its token names and step choices, never a
+bespoke curve.
 
-The `targetLc`/`chromaMultiplier` curve itself is **not** one of those
-things — every profile shares the same curve, tuned once against a sweep of
-Material's 19 hues to keep any two steps from converging on the same colour.
-A profile's character comes entirely from its token names and which step
-each role claims, never from a bespoke curve.
+The full rationale behind each profile's choices lives in its own doc
+comment (`src/profiles/*.ts`), not here:
 
-- **Generic**: seven usage-named roles and `--color-{intent}-*` naming,
-  including a `textPrimary`/`textSecondary` split (4.5:1 body text and a
-  softer 3:1 large-text weight). The starting point when the tool does not
-  already know your system. Its seed palette is an evenly-spaced synthetic
-  hue wheel (red, orange, yellow, green, blue, purple, pink, grey) rather
-  than any shipped system's colours, and its comparison family is empty —
-  there is nothing real to check a fully generic palette against.
-- **MUI / Material Design 2**: MUI's own `{ light, main, dark, contrastText }`
-  palette shape and `--mui-palette-{intent}-*` naming, seeded from Material
-  500 and checked against MUI's six default intents, derived through this
-  same solver. That is a palette real applications ship, so "does my colour
-  collide with anything" is asked against something real. (MUI publishes no
-  per-role values for these roles, so those are derived here and labelled as
-  derived.) `light` and `dark` disagree about their step between light and
-  dark page mode, with `main` fixed between them: a pigment nearer white reads
-  as quiet against a light page but stands out sharply against a dark one, and
-  a pigment nearer black does the reverse.
-- **Material Design 3 (M3)**: M3's own colour-role shape and
-  `--md-sys-color-*` naming — `base`/`on-{intent}` (the key colour itself),
-  `container`/`on-{intent}-container` (a softer tonal container), and
-  `baseDim`/`on-{intent}-fixed-variant` (M3's "fixed" family, a tone
-  Google's spec keeps constant across light and dark theme, which this
-  tool's per-mode solver cannot reproduce exactly). Seeded from M3's own
-  baseline key colours (primary/secondary/tertiary/error at source colour
-  #6750a4), not Material 500, which is M2's palette. Every index was fitted
-  against `@material/web`'s real light/dark values for all four baseline
-  colours, not just reasoned about. `base` and `container` don't swap
-  between modes, unlike every other profile's container/solid pair: real M3
-  keeps its key colours prominent against the page in *both* modes on
-  purpose, and `container`'s own gap from its background stays small in
-  both, well below `base`'s gap in either. `baseDim` keeps one index across
-  both modes too, fitted to light theme's tone (which sits close to
-  `container`, not to `base`) — even though dark theme's real tone for that
-  pair happens to equal `base`'s own, that's a fact about M3's baseline
-  scheme rather than something this profile switches its index to track.
-- **IBM Carbon Design System**: role names and `--cds-{group}-{intent}`
-  naming borrow Carbon's own Layer group — `background`, `layer`,
-  `layer-accent` — plus `border` and Carbon's two text weights,
-  `textPrimary`/`textSecondary`. Carbon's real Layer/Text tokens are neutral
-  elevation tokens, not per-colour ones, so the six per-intent roles here are
-  this tool's own extrapolation onto that naming; `background`, `surface` and
-  `onSurface` themselves *are* the real neutral values, from Carbon's White
-  and g100 themes. `seedPalette` pulls one representative step from each of
-  Carbon's 10-step hue scales; `family` holds Carbon's real `interactive` and
-  `support-*` (error/success/warning/info) colours, attached to
-  `layerAccent` — the one role with a genuine per-colour precedent. `border`
-  and `layerAccent` swap which end of the scale they sit toward between light
-  and dark, the same reasoning as Diamond's `accent`/`solid`.
-- **Diamond Light Source**: the `--ds-*` role set from
-  [sci-react-ui](https://github.com/DiamondLightSource/sci-react-ui), with the
-  nine shipped intents loaded. `seedPalette` and `family` hold the real values
-  shipped in `DiamondDSTokens.css`, so seeding from one of Diamond's own
-  intents checks how closely the shared curve lands near what Diamond ships
-  by hand. `accent` and `solid` disagree about their step between light and
-  dark, carried over from those real tokens: a solid fill reads as itself
-  from chroma alone and wants less luminance separation in dark mode, while
-  `accent`, the smaller role beside it, needs more.
+- **Generic** (`generic.ts`) — seven usage-named roles, `--color-{intent}-*`
+  naming. No real system behind it, so no comparison family; seeded from an
+  evenly spaced synthetic hue wheel. The starting point when the tool
+  doesn't already know your system.
+- **MUI / Material Design 2** (`mui.ts`) — MUI's own `{ light, main, dark,
+  contrastText }` shape and `--mui-palette-{intent}-*` naming. Seeded from
+  Material 500, checked against MUI's six default intents.
+- **Material Design 3** (`material3.ts`) — M3's own role shape
+  (`base`/`container`/`baseDim` and their `on-*` pairs) and
+  `--md-sys-color-*` naming. Seeded from M3's four baseline key colours;
+  every step index fitted against `@material/web`'s real light/dark values.
+- **IBM Carbon** (`carbon.ts`) — Carbon's Layer-group naming
+  (`background`/`layer`/`layer-accent`/`border`) plus its two text weights.
+  `background`, `surface` and `onSurface` are Carbon's real neutral tokens;
+  the six per-intent roles are this tool's own extrapolation onto that
+  naming.
+- **Diamond Light Source** (`diamond.ts`) — the `--ds-*` role set from
+  [sci-react-ui](https://github.com/DiamondLightSource/sci-react-ui), with
+  all nine shipped intents loaded as the comparison family.
 
-Adding one is a data change: see `src/profiles/types.ts`, then copy
-`diamond.ts` as a worked example. Reuse the shared curve and choose which
-step each role claims in each mode; only touch `targetLc`/`chromaMultiplier`
-if this design system's own tokens genuinely need a different shape.
+Adding a profile is a data change: copy `diamond.ts` as a worked example,
+reuse the shared curve, and choose which step each role claims per mode.
 
 ## Deployment
 
@@ -274,47 +167,41 @@ wants `BASE_PATH=/`, which is also the local default.
 ## Generating results by code
 
 `src/color/*.ts` and `src/profiles/*.ts` have no React import, so the same
-solver and audit the UI calls can be driven from a script instead of a
-browser. `scripts/generate.ts` is a thin CLI over `buildDraft`/`auditDraft`
-that prints one JSON object (the same shape as the UI's "Export JSON" panel)
-to stdout:
+solver and audit the UI uses can run from a script instead of a browser.
+`scripts/generate.ts` prints one JSON object (the "Export JSON" panel's
+shape) to stdout:
 
 ```bash
 npm run generate -- --seed "#3366ff"
-npm run generate -- --seed "#3366ff" --profile mui --policy hue-first --audit
+npm run generate -- --seed "#3366ff" blue --profile mui --policy hue-first --audit
 npm run generate -- --seed "#3366ff" --scale
 ```
 
 | Flag | Default | |
 | --- | --- | --- |
 | `--seed <hex>` | required | The seed colour. |
+| `[name]` or `--name <string>` | the seed hex | Intent name, used for the token prefix. Positional or `--name`; `--name` wins if both are given. |
 | `--profile <id>` | `generic` | One of `generic`, `mui`, `material3`, `carbon`, `diamond`. |
 | `--policy <name>` | `wcag-relaxed` | `wcag-relaxed`, `hue-first` or `wcag-strict` — see "The contrast model" above. |
-| `--name <string>` | the seed hex | Intent name, used for the token prefix. |
-| `--audit` | off | Adds a `findings` array (contrast, CVD, family and visibility checks) to the output. Combines with `--scale`. |
-| `--scale` | off | Prints just the raw 12-step `scale` ramp per mode (every step the solver produced, not just the ones a role claims — same values as the UI's "Full scale" export) instead of the named-role tokens, each step with its hex and which role(s), if any, land on it. |
+| `--audit` | off | Adds a `findings` array (contrast, CVD, family and visibility checks). Combines with `--scale`. |
+| `--scale` | off | Prints just the raw 12-step ramp per mode instead of the named-role tokens — same values as the UI's "Full scale" export — each step with its hex and which role(s), if any, land on it. |
 
 ## Reading the output
 
-The Material Design 2 palette at 500 is offered as one-click seeds, since it is
-where most non-Diamond work starts.
+The Material Design 2 palette at 500 is offered as one-click seeds, since
+it's where most non-Diamond work starts.
 
-Every step of both ramps is listed with its hex, not just as a swatch strip.
-Half the value of generating twelve steps is the ones no role is named for (a
-chart series, a hover state, a role that does not exist yet), and those are
-unreachable if the only way to read a value is to hover a square. The **Full
-scale** export writes them as `--{intent}-step-N`, numbered **1 to 12**.
+Every step of both ramps is listed with its hex, not just as a swatch — half
+the value of twelve steps is the ones no role claims (a chart series, a hover
+state, a role that doesn't exist yet), and those are unreachable if a hover
+is the only way to read a value. The **Full scale** export writes them as
+`--{intent}-step-N`, numbered 1–12, not `N00` — a step number is a position
+in the ramp, not a fixed lightness, and the modes are solved independently so
+step 1 is the palest tint in light and the deepest in dark.
 
-Deliberately not `N00`: a `-500` token meaning "step 5 of 12" next to a
-Material 500 seed picker is a trap. And a step number is a position in the
-role ramp, not a fixed lightness. The modes are solved independently, so step
-1 is the palest tint in light and the deepest in dark.
-
-Steps are stored 0-based internally, because they index arrays, and shown
-1-based everywhere a person reads them. `displayStep()` in
-`src/profiles/types.ts` is the single crossing point; mixing the two
-conventions is how a "step 5" in a conversation stops matching a "step 5" in a
-token file.
+Steps are stored 0-based (they index arrays) and shown 1-based everywhere a
+person reads them, through `displayStep()` in `src/profiles/types.ts` — the
+single crossing point between the two conventions.
 
 Profile, intent name, seed and contrast policy live in the URL hash, so a
 colour under discussion can be sent to someone rather than described.
