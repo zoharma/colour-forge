@@ -280,7 +280,7 @@ that prints one JSON object (the same shape as the UI's "Export JSON" panel)
 to stdout:
 
 ```bash
-npm run generate -- --seed "#3366ff" --profile mui
+npm run generate -- --seed "#3366ff"
 npm run generate -- --seed "#3366ff" --profile mui --policy hue-first --audit
 ```
 
