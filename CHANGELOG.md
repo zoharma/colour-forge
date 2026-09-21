@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.7] - 2026-09-21
+
+### Added
+
+- `npm run generate` — a CLI (`scripts/generate.ts`) that builds a draft and
+  optionally audits it from a seed colour, printing JSON, without going
+  through the UI.
+
 ## [0.5.6] - 2026-09-21
 
 ### Changed
