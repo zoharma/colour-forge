@@ -4,6 +4,16 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.6] - 2026-09-21
+
+### Changed
+
+- Audited and fixed `App.tsx` copy: mislabelled "Accessibility type" field
+  (now "Contrast policy", matching its own `aria-label`), an APCA explainer
+  paragraph that wrongly gave large text and non-text the same Lc 45 target
+  (APCA splits them at Lc 45/60; only WCAG's 3:1 treats them the same), and
+  an advanced disclosure summary missing its `profile.provenance` footnote.
+
 ## [0.5.5] - 2026-09-21
 
 ### Changed
