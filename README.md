@@ -282,6 +282,7 @@ to stdout:
 ```bash
 npm run generate -- --seed "#3366ff"
 npm run generate -- --seed "#3366ff" --profile mui --policy hue-first --audit
+npm run generate -- --seed "#3366ff" --scale
 ```
 
 | Flag | Default | |
@@ -290,7 +291,8 @@ npm run generate -- --seed "#3366ff" --profile mui --policy hue-first --audit
 | `--profile <id>` | `generic` | One of `generic`, `mui`, `material3`, `carbon`, `diamond`. |
 | `--policy <name>` | `wcag-relaxed` | `wcag-relaxed`, `hue-first` or `wcag-strict` — see "The contrast model" above. |
 | `--name <string>` | the seed hex | Intent name, used for the token prefix. |
-| `--audit` | off | Adds a `findings` array (contrast, CVD, family and visibility checks) to the output. |
+| `--audit` | off | Adds a `findings` array (contrast, CVD, family and visibility checks) to the output. Combines with `--scale`. |
+| `--scale` | off | Prints just the raw 12-step `scale` ramp per mode (every step the solver produced, not just the ones a role claims — same values as the UI's "Full scale" export) instead of the named-role tokens, each step with its hex and which role(s), if any, land on it. |
 
 ## Reading the output
 
