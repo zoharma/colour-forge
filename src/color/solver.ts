@@ -113,6 +113,12 @@ export const RAMP_INVERSION_TOLERANCE = -0.5;
 /** Shared so `scale.ts` and `audit.ts` can't disagree on this. */
 export const isRampInversion = (gap: number): boolean => gap < RAMP_INVERSION_TOLERANCE;
 
+/** The Lc gap between adjacent scale steps, as both the inversion and
+ *  collapse checks need it: |Lc| grows monotonically further from
+ *  background, so a shrinking gap between two same-signed Lc values is a
+ *  ramp problem regardless of light/dark mode. */
+export const lcGap = (current: number, previous: number): number => Math.abs(current) - Math.abs(previous);
+
 /** Retention alone is the wrong trigger — near white a pale tint can trip
  *  the floor on a loss too small to see, and easing the target there
  *  recovers nothing (the gamut is narrowest right there), just paying

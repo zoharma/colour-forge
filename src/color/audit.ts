@@ -10,7 +10,7 @@ import { CVD_SEPARATION_COMFORTABLE, CVD_SEPARATION_FLOOR, worstCvdSeparation } 
 import { hexToOklch, hueDelta } from "./oklch";
 import { rgbDistanceHex } from "./srgb";
 import { chosenForeground, type Draft } from "./scale";
-import { isRampInversion } from "./solver";
+import { isRampInversion, lcGap } from "./solver";
 import { WCAG_CRITERION, meetsWcag, permittedUsage, wcagRatioHex } from "./wcag";
 import {
   displayStep,
@@ -413,7 +413,7 @@ function rampFindings(profile: Profile, draft: Draft): Finding[] {
       const current = scale[i];
       if (!previous || !current) continue;
 
-      const gap = Math.abs(current.lc) - Math.abs(previous.lc);
+      const gap = lcGap(current.lc, previous.lc);
       if (gap >= STEP_COLLAPSE_FLOOR) continue;
 
       const roles = profile.roles

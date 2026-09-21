@@ -82,13 +82,7 @@ type HueCircleSample = {
   step: ReturnType<typeof solveStep>;
 };
 
-const hueCircleSweepCache = new Map<ContrastPolicy, HueCircleSample[]>();
-
-/** Cached per policy so two tests sweeping the same one don't redo it. */
 function sweepHueCircle(policy: ContrastPolicy): HueCircleSample[] {
-  const cached = hueCircleSweepCache.get(policy);
-  if (cached) return cached;
-
   const samples: HueCircleSample[] = [];
   for (const requirement of REQUIREMENTS) {
     for (const backgroundIsLight of [true, false]) {
@@ -105,9 +99,14 @@ function sweepHueCircle(policy: ContrastPolicy): HueCircleSample[] {
       }
     }
   }
-  hueCircleSweepCache.set(policy, samples);
   return samples;
 }
+
+/** Computed once per policy so the two tests sweeping "wcag-relaxed" don't redo it. */
+const HUE_CIRCLE_SWEEPS: Record<"wcag-strict" | "wcag-relaxed", HueCircleSample[]> = {
+  "wcag-strict": sweepHueCircle("wcag-strict"),
+  "wcag-relaxed": sweepHueCircle("wcag-relaxed"),
+};
 
 describe("contrast policy", () => {
   it("defaults to a balance between APCA and WCAG 2.2, not either extreme", () => {
@@ -170,7 +169,7 @@ describe("contrast policy", () => {
     // `hue-first` is swept separately below: its effective requirement is
     // always "none", so this would assert nothing for it.
     for (const policy of ["wcag-strict", "wcag-relaxed"] as const) {
-      for (const { requirement, backgroundIsLight, hue, chromaLabel, step } of sweepHueCircle(policy)) {
+      for (const { requirement, backgroundIsLight, hue, chromaLabel, step } of HUE_CIRCLE_SWEEPS[policy]) {
         if (step.verdict === "below-both") continue;
         const effective = effectiveRequirement(requirement, policy);
         expect(
@@ -195,7 +194,7 @@ describe("contrast policy", () => {
     // `wcag-relaxed` promises a *named* level down, not an unbounded one —
     // this is the guarantee that promise actually holds.
     let misses = 0;
-    for (const { requirement, backgroundIsLight, hue, chromaLabel, step } of sweepHueCircle("wcag-relaxed")) {
+    for (const { requirement, backgroundIsLight, hue, chromaLabel, step } of HUE_CIRCLE_SWEEPS["wcag-relaxed"]) {
       if (step.verdict === "below-both" || step.conformance === "meets") continue;
       misses++;
       expect(

@@ -6,6 +6,7 @@ import { pinnedCurves, pinnedStep, type PinSpec } from "./pin";
 import {
   DEFAULT_CONTRAST_POLICY,
   isRampInversion,
+  lcGap,
   retreatWithinBound,
   solveStep,
   type ContrastPolicy,
@@ -110,7 +111,7 @@ function separateCollapsedSteps(
 
     const prev = steps[i - 1]!;
     const cur = steps[i]!;
-    const gap = Math.abs(cur.lc) - Math.abs(prev.lc);
+    const gap = lcGap(cur.lc, prev.lc);
     if (isRampInversion(gap) || gap >= STEP_SEPARATION) continue;
 
     if (cur.verdict === "hue-protected") {
