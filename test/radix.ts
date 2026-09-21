@@ -1,15 +1,9 @@
-/** Radix Colors' step 9 ("solid") value for each of its scales — a second,
- *  independently-designed reference palette alongside `MATERIAL_500`.
- *
- *  Not a seed palette and not wired to any profile: Radix's hue distribution
- *  leans harder into muted/earth tones (sage, olive, sand, bronze) than
- *  Material's does, so sweeping both together exercises the solver and audit
- *  against two genuinely different sets of "real colours someone would
- *  actually pick" rather than one designer's taste in saturation.
- *
+/** Radix Colors' step 9 ("solid") value for each of its scales — a second
+ *  reference palette alongside `MATERIAL_500`. Not a seed palette and not
+ *  wired to any profile, hence `test/` rather than `src/profiles/`.
  *  Quoted from @radix-ui/colors 3.0.0, not generated. */
 
-import type { MaterialHue } from "./material";
+import type { MaterialHue } from "../src/profiles/material";
 
 export const RADIX_9: MaterialHue[] = [
   { name: "Tomato", hex: "#e54d2e" },

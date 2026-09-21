@@ -1,11 +1,12 @@
 import { apcaYHex } from "../src/color/apca";
+import { isLightBackground } from "../src/color/scale";
 import type { ContrastPolicy, StepContext } from "../src/color/solver";
 import type { WcagRequirement } from "../src/color/wcag";
 
-/** Builds the `StepContext` shape `solveStep` expects, from the pieces every
- *  test actually varies — hue/chroma, which background, what the role
- *  requires and which policy is under test — so that shape isn't
- *  hand-assembled independently in more than one test file. */
+/** Builds the `StepContext` shape `solveStep` expects, shared so it isn't
+ *  hand-assembled independently in more than one test file. Classifies the
+ *  background via the production `isLightBackground`, not a second copy of
+ *  its cutoff. */
 export function stepContext(
   hue: number,
   chroma: number,
@@ -13,13 +14,12 @@ export function stepContext(
   requirement: WcagRequirement,
   policy: ContrastPolicy,
 ): StepContext {
-  const backgroundY = apcaYHex(backgroundHex);
   return {
     hue,
     chroma,
     backgroundHex,
-    backgroundY,
-    backgroundIsLight: backgroundY > 0.4,
+    backgroundY: apcaYHex(backgroundHex),
+    backgroundIsLight: isLightBackground(backgroundHex),
     requirement,
     policy,
   };

@@ -67,25 +67,47 @@ const textStep = (seed: string, policy: ContrastPolicy) => {
   return stepFor(H, C, "body", policy, true);
 };
 
-const HUE_CIRCLE_CHROMA = hexToOklch("#3f63c9").C;
+const HUE_CIRCLE_CHROMAS: readonly (readonly [label: string, chroma: number])[] = [
+  ["moderate", hexToOklch("#3f63c9").C],
+  // Exceeds the sRGB gamut at most hues, so this also exercises hue
+  // protection/chroma retention, not just the gamut interior.
+  ["gamut-edge", 0.3],
+];
 
-/** Every (requirement, background polarity, hue) combination the two
- *  full-hue-circle sweeps below share, so widening or narrowing the domain
- *  moves both invariants together instead of two hand-rolled loops that can
- *  quietly drift apart. */
-function* sweepHueCircle(policy: ContrastPolicy) {
+type HueCircleSample = {
+  requirement: WcagRequirement;
+  backgroundIsLight: boolean;
+  hue: number;
+  chromaLabel: string;
+  step: ReturnType<typeof solveStep>;
+};
+
+const hueCircleSweepCache = new Map<ContrastPolicy, HueCircleSample[]>();
+
+/** The full-hue-circle sweep the tests below share, cached per policy so
+ *  two tests sweeping the same policy don't redo the same `solveStep` calls. */
+function sweepHueCircle(policy: ContrastPolicy): HueCircleSample[] {
+  const cached = hueCircleSweepCache.get(policy);
+  if (cached) return cached;
+
+  const samples: HueCircleSample[] = [];
   for (const requirement of REQUIREMENTS) {
     for (const backgroundIsLight of [true, false]) {
-      for (const hue of hueCircle()) {
-        yield {
-          requirement,
-          backgroundIsLight,
-          hue,
-          step: stepFor(hue, HUE_CIRCLE_CHROMA, requirement, policy, backgroundIsLight),
-        };
+      for (const [chromaLabel, chroma] of HUE_CIRCLE_CHROMAS) {
+        for (const hue of hueCircle()) {
+          samples.push({
+            requirement,
+            backgroundIsLight,
+            hue,
+            chromaLabel,
+            step: stepFor(hue, chroma, requirement, policy, backgroundIsLight),
+          });
+        }
       }
     }
   }
+  hueCircleSweepCache.set(policy, samples);
+  return samples;
 }
 
 describe("contrast policy", () => {
@@ -142,32 +164,27 @@ describe("contrast policy", () => {
 
   it("never drops below the policy's own effective requirement, across the full hue circle in both modes", () => {
     // Rule 1 of the golden thread: `effectiveRequirement` names the live
-    // floor for a policy, and the solver must honour it everywhere, not just
-    // at the hues picked to demonstrate the exemption. `below-both` is the
-    // one legitimate exception — nothing at that hue clears even the eased
-    // floor, and the solver says so rather than faking a result.
+    // floor for a policy, and the solver must honour it everywhere.
+    // `below-both` is the one legitimate exception — nothing at that hue
+    // clears even the eased floor.
     //
-    // `hue-first` is swept separately below, not here: its effective
-    // requirement is always "none", so `meetsWcag(ratio, "none")` would be
-    // true for any non-negative ratio and assert nothing across the whole
-    // circle.
+    // `hue-first` is swept separately below: its effective requirement is
+    // always "none", so this would assert nothing for it.
     for (const policy of ["wcag-strict", "wcag-relaxed"] as const) {
-      for (const { requirement, backgroundIsLight, hue, step } of sweepHueCircle(policy)) {
+      for (const { requirement, backgroundIsLight, hue, chromaLabel, step } of sweepHueCircle(policy)) {
         if (step.verdict === "below-both") continue;
         const effective = effectiveRequirement(requirement, policy);
         expect(
           meetsWcag(step.wcagRatio, effective),
-          `${policy}/${requirement}/${backgroundIsLight ? "light" : "dark"} bg/hue ${hue}`,
+          `${policy}/${requirement}/${backgroundIsLight ? "light" : "dark"} bg/hue ${hue}/${chromaLabel} chroma`,
         ).toBe(true);
       }
     }
   });
 
   it("gives hue-first no floor at all, for every requirement", () => {
-    // The other half of rule 1: "More APCA" explicitly never trades chroma
-    // away to force conformance, so its effective requirement is "none"
-    // regardless of the role's real one. Checked directly rather than
-    // through a hue sweep, since the property holds independently of hue.
+    // The other half of rule 1: "More APCA" never trades chroma for
+    // conformance, so its effective requirement is always "none".
     for (const requirement of REQUIREMENTS) {
       expect(effectiveRequirement(requirement, "hue-first")).toBe("none");
     }
@@ -179,12 +196,12 @@ describe("contrast policy", () => {
     // `wcag-relaxed` promises a *named* level down, not an unbounded one —
     // this is the guarantee that promise actually holds.
     let misses = 0;
-    for (const { requirement, backgroundIsLight, hue, step } of sweepHueCircle("wcag-relaxed")) {
+    for (const { requirement, backgroundIsLight, hue, chromaLabel, step } of sweepHueCircle("wcag-relaxed")) {
       if (step.verdict === "below-both" || step.conformance === "meets") continue;
       misses++;
       expect(
         meetsWcag(step.wcagRatio, oneLevelDown(requirement)),
-        `${requirement}/${backgroundIsLight ? "light" : "dark"} bg/hue ${hue}`,
+        `${requirement}/${backgroundIsLight ? "light" : "dark"} bg/hue ${hue}/${chromaLabel} chroma`,
       ).toBe(true);
     }
     // Guard against the test passing because the sweep never actually
@@ -297,6 +314,17 @@ describe("the generic profile has no comparison family", () => {
 });
 
 describe("the exemption is never free", () => {
+  // Both properties below read the same hue-first/wcag-strict draft pair,
+  // so it's computed once per (profile, seed) and shared.
+  const draftPairs = PROFILES.flatMap((profile) =>
+    REFERENCE_PALETTE.map(({ hex: seed }) => ({
+      profile,
+      seed,
+      relaxed: buildDraft(profile, "x", seed, "hue-first"),
+      strict: buildDraft(profile, "x", seed, "wcag-strict"),
+    })),
+  );
+
   it("only drops below a requirement where doing so buys visible chroma", () => {
     // The invariant that keeps a loosened policy from being a blanket
     // downgrade: every role that came out below its requirement by choice
@@ -309,24 +337,19 @@ describe("the exemption is never free", () => {
     // once triggering the exemption it was meant to check.
     let exemptions = 0;
 
-    for (const profile of PROFILES) {
-      for (const { hex: seed } of REFERENCE_PALETTE) {
-        const relaxed = buildDraft(profile, "x", seed, "hue-first");
-        const strict = buildDraft(profile, "x", seed, "wcag-strict");
+    for (const { profile, seed, relaxed, strict } of draftPairs) {
+      for (const mode of ["light", "dark"] as const) {
+        for (const role of profile.roles) {
+          const loose = relaxed[mode].roles[role.key];
+          const tight = strict[mode].roles[role.key];
+          if (!loose || !tight) continue;
+          if (loose.conformance !== "below-by-choice") continue;
 
-        for (const mode of ["light", "dark"] as const) {
-          for (const role of profile.roles) {
-            const loose = relaxed[mode].roles[role.key];
-            const tight = strict[mode].roles[role.key];
-            if (!loose || !tight) continue;
-            if (loose.conformance !== "below-by-choice") continue;
-
-            exemptions++;
-            expect(
-              loose.chroma - tight.chroma,
-              `${profile.id}/${mode}/${role.key} @${seed} gave up ${role.requirement} for nothing`,
-            ).toBeGreaterThanOrEqual(0.02 - 1e-9);
-          }
+          exemptions++;
+          expect(
+            loose.chroma - tight.chroma,
+            `${profile.id}/${mode}/${role.key} @${seed} gave up ${role.requirement} for nothing`,
+          ).toBeGreaterThanOrEqual(0.02 - 1e-9);
         }
       }
     }
@@ -336,15 +359,12 @@ describe("the exemption is never free", () => {
   });
 
   it("leaves the strict policy fully conformant across the whole palette", () => {
-    for (const profile of PROFILES) {
-      for (const { hex: seed } of REFERENCE_PALETTE) {
-        const draft = buildDraft(profile, "x", seed, "wcag-strict");
-        for (const mode of ["light", "dark"] as const) {
-          for (const role of profile.roles) {
-            const step = draft[mode].roles[role.key];
-            if (!step) continue;
-            expect(step.conformance).not.toBe("below-by-choice");
-          }
+    for (const { profile, strict } of draftPairs) {
+      for (const mode of ["light", "dark"] as const) {
+        for (const role of profile.roles) {
+          const step = strict[mode].roles[role.key];
+          if (!step) continue;
+          expect(step.conformance).not.toBe("below-by-choice");
         }
       }
     }

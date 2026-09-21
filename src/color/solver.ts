@@ -137,6 +137,10 @@ export interface SolvedStep {
  *  orange recognisably orange at a small contrast cost. */
 export const CHROMA_RETENTION_FLOOR = 0.85;
 
+/** Below this (negative) Lc gap, a ramp has doubled back. Shared by
+ *  `scale.ts` and `audit.ts` so they can't disagree on where that line sits. */
+export const RAMP_INVERSION_TOLERANCE = -0.5;
+
 /** Retention alone is the wrong trigger: it's a ratio and says nothing
  *  about how much colour is actually at stake. Near white the sRGB gamut
  *  holds almost no chroma at all, so a pale tint asked for 0.039 and given

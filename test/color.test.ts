@@ -10,9 +10,15 @@ import {
   simulateCvdHex,
   worstCvdSeparation,
 } from "../src/color/cvd";
-import { solveStep, CHROMA_RETENTION_FLOOR, type StepContext, type ContrastPolicy } from "../src/color/solver";
+import {
+  solveStep,
+  CHROMA_RETENTION_FLOOR,
+  RAMP_INVERSION_TOLERANCE,
+  type StepContext,
+  type ContrastPolicy,
+} from "../src/color/solver";
 import { buildDraft, generateScale, foregroundCandidates } from "../src/color/scale";
-import { auditDraft, draftAsIntent, separationRows, RAMP_INVERSION_TOLERANCE } from "../src/color/audit";
+import { auditDraft, draftAsIntent, separationRows } from "../src/color/audit";
 import { exportCss, exportJson, slugifyIntent } from "../src/color/export";
 import { diamondProfile } from "../src/profiles/diamond";
 import { genericProfile } from "../src/profiles/generic";
@@ -333,10 +339,8 @@ describe("scale generation", () => {
         // silent one nobody would see. Caught live by a real yellow seed
         // (`#fcd021`) inverting by over 20 Lc with no test ever swept enough
         // seeds to notice.
-        // `seed` outer, `mode` inner: `buildDraft` always solves both modes
-        // in one call, so computing it (and auditing it) once per seed and
-        // indexing `draft[mode]` for each mode avoids redoing that same
-        // work a second time per seed.
+        // `seed` outer: `buildDraft` always solves both modes in one call,
+        // so compute it once per seed and index `draft[mode]` below.
         for (const seed of seeds) {
           const draft = buildDraft(profile, "draft", seed);
           const family = [...profile.family, draftAsIntent(profile, draft)];

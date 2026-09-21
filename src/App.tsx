@@ -12,6 +12,7 @@ import { buildDraft } from "./color/scale";
 import { suggestPin, type PinSpec } from "./color/pin";
 import { isValidHex, normaliseHex } from "./color/srgb";
 import { DEFAULT_PROFILE_ID, PROFILES, findProfile, type ModeKey, type SeededIntent } from "./profiles";
+import { POLICY_SLUGS, policyFromSlug } from "./urlPolicySlug";
 import { CVD_LABELS } from "./color/cvd";
 import { CvdControl, CVD_NOTES } from "./ui/CvdControl";
 import { ExportPanel } from "./ui/ExportPanel";
@@ -29,25 +30,6 @@ const THEME_ICONS: Record<ThemeChoice, typeof Monitor> = { system: Monitor, ligh
 
 const MODES: ModeKey[] = ["light", "dark"];
 
-/** The URL uses the same names as the policy tabs, not the engine's internal
- *  ids — a link should read like what was clicked. */
-const POLICY_SLUGS: Record<ContrastPolicy, string> = {
-  "hue-first": "more-apca",
-  "wcag-relaxed": "system-default",
-  "wcag-strict": "wcag-strict",
-};
-/** `full-wcag` was this policy's slug before it was renamed to "WCAG Strict"
- *  — kept resolvable so a link made before the rename still opens the right
- *  policy instead of silently falling back to the default. Never generated:
- *  `POLICY_SLUGS` alone decides what a *new* link looks like. */
-const LEGACY_POLICY_SLUGS: Record<string, ContrastPolicy> = {
-  "full-wcag": "wcag-strict",
-};
-const POLICY_FROM_SLUG: Record<string, ContrastPolicy> = {
-  ...LEGACY_POLICY_SLUGS,
-  ...Object.fromEntries(Object.entries(POLICY_SLUGS).map(([policy, slug]) => [slug, policy as ContrastPolicy])),
-};
-
 /** Seed, name and profile live in the URL so a colour under discussion can be
  *  sent to someone rather than described. Everything else is local taste. */
 function readUrlState() {
@@ -56,7 +38,7 @@ function readUrlState() {
   return {
     profileId: params.get("profile") ?? DEFAULT_PROFILE_ID,
     name: params.get("name") ?? "draft",
-    policy: POLICY_FROM_SLUG[params.get("policy") ?? ""] ?? "wcag-relaxed",
+    policy: policyFromSlug(params.get("policy")),
     pin: parsePin(params.get("pin")),
     // Not one of the example intents: seeding on top of one opens the tool
     // onto a wall of collisions with itself, which reads as the tool being

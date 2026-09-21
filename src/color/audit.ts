@@ -10,6 +10,7 @@ import { CVD_SEPARATION_COMFORTABLE, CVD_SEPARATION_FLOOR, worstCvdSeparation } 
 import { hexToOklch, hueDelta } from "./oklch";
 import { rgbDistanceHex } from "./srgb";
 import { chosenForeground, type Draft } from "./scale";
+import { RAMP_INVERSION_TOLERANCE } from "./solver";
 import { WCAG_CRITERION, meetsWcag, permittedUsage, wcagRatioHex } from "./wcag";
 import {
   displayStep,
@@ -409,12 +410,6 @@ function familyFindings(profile: Profile, draft: Draft, siblings: SeededIntent[]
  *  never fires on a curve doing that on purpose — only on two steps that
  *  were meant to differ and didn't. */
 const STEP_COLLAPSE_FLOOR = 2;
-
-/** Below this (negative) Lc gap, a ramp has doubled back rather than merely
- *  collapsed two steps together — see `ramp-inversion` below. Exported so
- *  tests sweeping for inversions check against the same threshold this file
- *  actually fires on, rather than a hand-typed copy that could drift from it. */
-export const RAMP_INVERSION_TOLERANCE = -0.5;
 
 function rampFindings(profile: Profile, draft: Draft): Finding[] {
   const findings: Finding[] = [];

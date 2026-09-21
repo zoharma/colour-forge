@@ -3,7 +3,14 @@
 import { apcaHex, apcaYHex } from "./apca";
 import { hexToOklch } from "./oklch";
 import { pinnedCurves, pinnedStep, type PinSpec } from "./pin";
-import { retreatWithinBound, solveStep, type ContrastPolicy, type SolvedStep, type StepContext } from "./solver";
+import {
+  RAMP_INVERSION_TOLERANCE,
+  retreatWithinBound,
+  solveStep,
+  type ContrastPolicy,
+  type SolvedStep,
+  type StepContext,
+} from "./solver";
 import { WCAG_MINIMUM, meetsWcag, wcagRatioHex, type WcagRequirement } from "./wcag";
 import type { ModeKey, Profile, RoleDef } from "../profiles/types";
 
@@ -110,7 +117,7 @@ function separateCollapsedSteps(
     const prev = steps[i - 1]!;
     const cur = steps[i]!;
     const gap = Math.abs(cur.lc) - Math.abs(prev.lc);
-    if (gap < -0.5 || gap >= STEP_SEPARATION) continue;
+    if (gap < RAMP_INVERSION_TOLERANCE || gap >= STEP_SEPARATION) continue;
 
     if (cur.verdict === "hue-protected") {
       steps[i] = retreatStep(cur, ctxs[i]!, Math.abs(prev.lc));
