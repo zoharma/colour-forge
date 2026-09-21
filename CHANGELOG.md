@@ -4,6 +4,20 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.8] - 2026-09-21
+
+### Added
+
+- `npm run generate` accepts the intent name positionally
+  (`--seed <hex> [name]`) as a shorthand for `--name`; `--name` still wins
+  if both are given.
+
+### Changed
+
+- Trimmed the README for length and readability, heaviest cut in Profiles
+  (each entry now points to that profile's own doc comment in
+  `src/profiles/*.ts` for full rationale rather than repeating it).
+
 ## [0.5.7] - 2026-09-21
 
 ### Added

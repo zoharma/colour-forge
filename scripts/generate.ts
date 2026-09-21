@@ -2,9 +2,12 @@
  *  seed colour without going through the UI. Prints one JSON object to
  *  stdout, in the same shape as the "Export JSON" panel.
  *
- *  Usage: npm run generate -- --seed "#3366ff" [--profile mui]
- *         [--policy wcag-relaxed] [--name "New intent"] [--audit]
- *         [--scale] (prints just the raw ramp instead of the named roles) */
+ *  Usage: npm run generate -- --seed "#3366ff" [name] [--profile mui]
+ *         [--policy wcag-relaxed] [--audit]
+ *         [--scale] (prints just the raw ramp instead of the named roles)
+ *
+ *  The intent name can be given positionally ("blue") or as --name "blue";
+ *  --name wins if both are given. */
 
 import { findProfile, DEFAULT_PROFILE_ID, PROFILES, displayStep, type ModeKey, type Profile } from "../src/profiles";
 import { isValidHex, normaliseHex } from "../src/color/srgb";
@@ -48,9 +51,21 @@ interface Args {
 }
 
 function parseArgs(argv: string[]): Args {
+  const consumed = new Set<number>();
+
   const get = (flag: string): string | undefined => {
     const i = argv.indexOf(flag);
-    return i === -1 ? undefined : argv[i + 1];
+    if (i === -1) return undefined;
+    consumed.add(i);
+    consumed.add(i + 1);
+    return argv[i + 1];
+  };
+
+  const has = (flag: string): boolean => {
+    const i = argv.indexOf(flag);
+    if (i === -1) return false;
+    consumed.add(i);
+    return true;
   };
 
   const seed = get("--seed");
@@ -67,13 +82,22 @@ function parseArgs(argv: string[]): Args {
     fail(`Unknown policy "${policyInput}". Expected one of: ${CONTRAST_POLICIES.join(", ")}`);
   }
 
+  const explicitName = get("--name");
+  const audit = has("--audit");
+  const scale = has("--scale");
+
+  const positional = argv.filter((_, i) => !consumed.has(i));
+  if (positional.length > 1) fail(`Unexpected extra arguments: ${positional.join(" ")}`);
+  const [positionalName] = positional;
+  if (positionalName?.startsWith("--")) fail(`Unknown flag "${positionalName}"`);
+
   return {
     seed: normaliseHex(seed),
     profileId,
     policy: policyInput,
-    name: get("--name") ?? seed,
-    audit: argv.includes("--audit"),
-    scale: argv.includes("--scale"),
+    name: explicitName ?? positionalName ?? seed,
+    audit,
+    scale,
   };
 }
 
