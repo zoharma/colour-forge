@@ -8,7 +8,7 @@ import {
   POLICY_LABELS,
   type ContrastPolicy,
 } from "./color/solver";
-import { buildDraft, isLightBackground } from "./color/scale";
+import { baselineInversionWarnings, buildDraft } from "./color/scale";
 import { suggestPin, type PinSpec } from "./color/pin";
 import { isValidHex, normaliseHex } from "./color/srgb";
 import {
@@ -16,6 +16,7 @@ import {
   DEFAULT_PROFILE_ID,
   PROFILES,
   findProfile,
+  withBaseline,
   type ModeKey,
   type SeededIntent,
 } from "./profiles";
@@ -102,19 +103,51 @@ function useHexField(initial: string): [string, string, (next: string) => void, 
  *  Collapsing a drag into one commit per pause avoids that — deliberately
  *  not applied to the seed picker's `commitHex`, which keeps its existing
  *  every-tick feel; background changes are safe to defer since nothing else
- *  depends on seeing every intermediate baseline value. */
-function useDebouncedCommit(commit: (next: string) => void, delayMs = 120): (next: string) => void {
+ *  depends on seeing every intermediate baseline value.
+ *
+ *  Two things a plain debounce alone would get wrong, both handled here:
+ *  - `ref` listens for the input's native `change` (fired once, when the
+ *    picker is dismissed — React's `onChange` for this element type is
+ *    bound to `input`, which fires on every drag tick instead) and flushes
+ *    immediately, so a completed drag settles as soon as it ends rather
+ *    than waiting out the delay. It flushes `lastSeenRef`, not `el.value`:
+ *    for a controlled input, React resets the DOM's own `.value` back to
+ *    the last *committed* state right after handling each native `input`
+ *    tick that didn't itself commit a new one, so by the time `change`
+ *    fires, `el.value` is already stale — only the value React's own
+ *    `onChange` actually saw (captured below, in `onDrag`) is trustworthy.
+ *  - `cancelPending`, called by every other path that commits this same
+ *    field directly (typed hex, "Reset to default"), so a still-pending
+ *    drag commit can't fire afterwards and silently overwrite it. */
+function useDebouncedCommit(commit: (next: string) => void, delayMs = 120) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const lastSeenRef = useRef<string>();
 
-  useEffect(() => () => clearTimeout(timeoutRef.current), []);
+  const cancelPending = useCallback(() => clearTimeout(timeoutRef.current), []);
+  useEffect(() => cancelPending, [cancelPending]);
 
-  return useCallback(
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const onSettle = () => {
+      cancelPending();
+      if (lastSeenRef.current !== undefined) commit(lastSeenRef.current);
+    };
+    el.addEventListener("change", onSettle);
+    return () => el.removeEventListener("change", onSettle);
+  }, [commit, cancelPending]);
+
+  const onDrag = useCallback(
     (next: string) => {
-      clearTimeout(timeoutRef.current);
+      lastSeenRef.current = next;
+      cancelPending();
       timeoutRef.current = setTimeout(() => commit(next), delayMs);
     },
-    [commit, delayMs],
+    [commit, delayMs, cancelPending],
   );
+
+  return useMemo(() => ({ ref: inputRef, onDrag, cancelPending }), [onDrag, cancelPending]);
 }
 
 function readStored<T extends string>(key: string, fallback: T): T {
@@ -132,6 +165,7 @@ export function App() {
   const [policy, setPolicy] = useState<ContrastPolicy>(initial.policy);
   const [showScale, setShowScale] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const closeAbout = useCallback(() => setShowAbout(false), []);
   const [pin, setPin] = useState<PinSpec | undefined>(initial.pin);
   const [seedHex, hexDraft, setHexDraft, commitHex] = useHexField(initial.seedHex);
   const [baselineLight, baselineLightDraft, setBaselineLightDraft, commitBaselineLight] = useHexField(
@@ -140,8 +174,8 @@ export function App() {
   const [baselineDark, baselineDarkDraft, setBaselineDarkDraft, commitBaselineDark] = useHexField(
     initial.baselineDark,
   );
-  const debouncedCommitBaselineLight = useDebouncedCommit(commitBaselineLight);
-  const debouncedCommitBaselineDark = useDebouncedCommit(commitBaselineDark);
+  const baselineLightDebounce = useDebouncedCommit(commitBaselineLight);
+  const baselineDarkDebounce = useDebouncedCommit(commitBaselineDark);
   const [cvdView, setCvdView] = useState<CvdView>(() => readStored<CvdView>("cf-cvd", "none"));
   const [theme, setTheme] = useState<ThemeChoice>(() => readStored<ThemeChoice>("cf-theme", "system"));
   const [foregroundOverrides, setForegroundOverrides] = useState<Record<ModeKey, Record<string, string>>>({
@@ -170,30 +204,17 @@ export function App() {
   // consumer of `profile` below (draft, audit, preview, export) sees this
   // overridden object, so the override only has to happen once, here.
   const profile = useMemo(
-    () => ({
-      ...baseProfile,
-      modes: {
-        light: { ...baseProfile.modes.light, background: baselineLight },
-        dark: { ...baseProfile.modes.dark, background: baselineDark },
-      },
-    }),
+    () => withBaseline(baseProfile, baselineLight, baselineDark),
     [baseProfile, baselineLight, baselineDark],
   );
 
-  // `isLightBackground` decides "is this mode's page light or dark" purely
-  // from the background's own luminance, so a baseline pair the wrong way
-  // round (light mode's darker than dark mode's, or just both on the same
-  // side) flips that per-mode call and solves the panel as if it were the
-  // other mode, with nothing else on the page explaining why.
+  // See `baselineInversionWarnings` in color/scale.ts: a baseline pair the
+  // wrong way round (light mode's darker than dark mode's, or both on the
+  // same side) flips which mode a panel solves as, with nothing else on the
+  // page explaining why.
   const baselineWarning = useMemo(() => {
-    const lightReadsDark = !isLightBackground(baselineLight);
-    const darkReadsLight = isLightBackground(baselineDark);
-    if (lightReadsDark && darkReadsLight) {
-      return "Both baseline backgrounds read as the wrong mode: light mode's measures as dark and dark mode's measures as light. Both panels below will solve backwards.";
-    }
-    if (lightReadsDark) return "The light-mode baseline measures as dark, so the light panel below will solve as if it were dark mode.";
-    if (darkReadsLight) return "The dark-mode baseline measures as light, so the dark panel below will solve as if it were light mode.";
-    return undefined;
+    const warnings = baselineInversionWarnings(baselineLight, baselineDark);
+    return warnings.length ? warnings.join(" ") : undefined;
   }, [baselineLight, baselineDark]);
 
   useEffect(() => {
@@ -250,9 +271,11 @@ export function App() {
   const rows = useMemo(() => separationRows(profile, familyWithDraft), [profile, familyWithDraft]);
 
   const resetBaseline = useCallback(() => {
+    baselineLightDebounce.cancelPending();
+    baselineDarkDebounce.cancelPending();
     commitBaselineLight(BASELINE_BACKGROUND.light);
     commitBaselineDark(BASELINE_BACKGROUND.dark);
-  }, [commitBaselineLight, commitBaselineDark]);
+  }, [commitBaselineLight, commitBaselineDark, baselineLightDebounce, baselineDarkDebounce]);
 
   const setForeground = (mode: ModeKey, roleKey: string, label: string) =>
     setForegroundOverrides((prev) => ({ ...prev, [mode]: { ...prev[mode], [roleKey]: label } }));
@@ -441,10 +464,11 @@ export function App() {
                   <div className="input-row">
                     <div className="hex-input-group">
                       <input
+                        ref={baselineLightDebounce.ref}
                         type="color"
                         value={baselineLight}
                         aria-label="Baseline background, light mode"
-                        onChange={(e) => debouncedCommitBaselineLight(e.target.value)}
+                        onChange={(e) => baselineLightDebounce.onDrag(e.target.value)}
                       />
                       <input
                         id="baseline-light"
@@ -453,18 +477,25 @@ export function App() {
                         aria-label="Baseline background, light mode hex"
                         value={baselineLightDraft}
                         onChange={(e) => setBaselineLightDraft(e.target.value)}
-                        onBlur={(e) => commitBaselineLight(e.target.value.trim())}
+                        onBlur={(e) => {
+                          baselineLightDebounce.cancelPending();
+                          commitBaselineLight(e.target.value.trim());
+                        }}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") commitBaselineLight(e.currentTarget.value.trim());
+                          if (e.key === "Enter") {
+                            baselineLightDebounce.cancelPending();
+                            commitBaselineLight(e.currentTarget.value.trim());
+                          }
                         }}
                       />
                     </div>
                     <div className="hex-input-group">
                       <input
+                        ref={baselineDarkDebounce.ref}
                         type="color"
                         value={baselineDark}
                         aria-label="Baseline background, dark mode"
-                        onChange={(e) => debouncedCommitBaselineDark(e.target.value)}
+                        onChange={(e) => baselineDarkDebounce.onDrag(e.target.value)}
                       />
                       <input
                         id="baseline-dark"
@@ -473,9 +504,15 @@ export function App() {
                         aria-label="Baseline background, dark mode hex"
                         value={baselineDarkDraft}
                         onChange={(e) => setBaselineDarkDraft(e.target.value)}
-                        onBlur={(e) => commitBaselineDark(e.target.value.trim())}
+                        onBlur={(e) => {
+                          baselineDarkDebounce.cancelPending();
+                          commitBaselineDark(e.target.value.trim());
+                        }}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") commitBaselineDark(e.currentTarget.value.trim());
+                          if (e.key === "Enter") {
+                            baselineDarkDebounce.cancelPending();
+                            commitBaselineDark(e.currentTarget.value.trim());
+                          }
                         }}
                       />
                     </div>
@@ -650,7 +687,7 @@ export function App() {
         </section>
       </div>
 
-      <AboutDialog open={showAbout} onClose={() => setShowAbout(false)} />
+      <AboutDialog open={showAbout} onClose={closeAbout} />
     </>
   );
 }

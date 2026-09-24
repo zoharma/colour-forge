@@ -1,12 +1,33 @@
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import { X } from "lucide-react";
+import { VERDICT_EXPLANATIONS, VERDICT_LABELS, type ContrastVerdict } from "../color/solver";
+
+/** Verdicts a badge actually shows in the app. `pinned` is left out here —
+ *  it's covered by its own "Pinning a seed to a role" section below, and
+ *  isn't part of what this table is explaining. Labels and explanations
+ *  come straight from `solver.ts`, the same source `Badges.tsx` renders
+ *  its tooltips from, so this table can't independently drift from what a
+ *  badge actually says. */
+const VERDICT_ORDER: ContrastVerdict[] = ["apca-met", "hue-protected", "wcag-bound", "below-both"];
 
 /** Condensed from README.md — the parts worth having open on the same screen
  *  as the tool, not the full rationale (that stays in the repo, linked at
  *  the bottom). A native <dialog> rather than a hand-rolled modal: focus
  *  trapping, Escape-to-close and the ::backdrop all come for free. */
-export function AboutDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export const AboutDialog = memo(function AboutDialog({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Whether the mouse actually went down on the backdrop (not just came up
+  // there) — a text selection started inside `.about-body` and dragged past
+  // the dialog's edge before release lands its `click` on the dialog
+  // element too (see the onClick guard below), and would otherwise close
+  // the dialog mid-selection.
+  const mouseDownOnBackdrop = useRef(false);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -21,12 +42,16 @@ export function AboutDialog({ open, onClose }: { open: boolean; onClose: () => v
       className="about-dialog"
       aria-labelledby="about-title"
       onClose={onClose}
+      onMouseDown={(e) => {
+        mouseDownOnBackdrop.current = e.target === e.currentTarget;
+      }}
       // The dialog box itself has no padding of its own (see .about-dialog)
       // — the header/body children fill it edge to edge — so a click
       // landing on the dialog element rather than a child can only be the
-      // backdrop.
+      // backdrop. Requiring the press to have *started* there too (not just
+      // ended there) is what keeps a selection drag from closing this.
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget && mouseDownOnBackdrop.current) onClose();
       }}
     >
       <div className="about-header">
@@ -58,24 +83,12 @@ export function AboutDialog({ open, onClose }: { open: boolean; onClose: () => v
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td>
-                <em>(no badge)</em>
-              </td>
-              <td>Reached the APCA target with the hue intact.</td>
-            </tr>
-            <tr>
-              <td>hue held</td>
-              <td>Eased off APCA to stay recognisably this colour. Still clears WCAG 2.2.</td>
-            </tr>
-            <tr>
-              <td>WCAG held</td>
-              <td>WCAG 2.2 forced more contrast than hue protection or APCA asked for.</td>
-            </tr>
-            <tr>
-              <td>fails</td>
-              <td>No lightness of this hue clears WCAG 2.2 for this usage.</td>
-            </tr>
+            {VERDICT_ORDER.map((verdict) => (
+              <tr key={verdict}>
+                <td>{VERDICT_LABELS[verdict]}</td>
+                <td>{VERDICT_EXPLANATIONS[verdict]}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
         <p>
@@ -116,4 +129,4 @@ export function AboutDialog({ open, onClose }: { open: boolean; onClose: () => v
       </div>
     </dialog>
   );
-}
+});

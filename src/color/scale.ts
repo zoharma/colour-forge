@@ -24,6 +24,24 @@ const LIGHT_BACKGROUND_Y = 0.4;
 
 export const isLightBackground = (hex: string): boolean => apcaYHex(hex) > LIGHT_BACKGROUND_Y;
 
+/** Which of the two baseline backgrounds read as the wrong lightness for
+ *  their own mode — light mode's measuring dark, or dark mode's measuring
+ *  light — since either one flips `backgroundIsLight` for that mode and
+ *  solves it backwards with no other cue. Empty when neither is inverted.
+ *  Shared by the UI's warning banner and the CLI's own warning (`--bg-light`/
+ *  `--bg-dark`), so the two check and phrase this identically rather than by
+ *  hand-copied branches that can drift apart. */
+export function baselineInversionWarnings(lightBg: string, darkBg: string): string[] {
+  const warnings: string[] = [];
+  if (!isLightBackground(lightBg)) {
+    warnings.push("The light-mode baseline measures as dark, so its scale will solve as if it were dark mode.");
+  }
+  if (isLightBackground(darkBg)) {
+    warnings.push("The dark-mode baseline measures as light, so its scale will solve as if it were light mode.");
+  }
+  return warnings;
+}
+
 const strictest = (a: WcagRequirement, b: WcagRequirement): WcagRequirement =>
   WCAG_MINIMUM[a] >= WCAG_MINIMUM[b] ? a : b;
 

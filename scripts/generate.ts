@@ -16,11 +16,12 @@ import {
   PROFILES,
   BASELINE_BACKGROUND,
   displayStep,
+  withBaseline,
   type ModeKey,
   type Profile,
 } from "../src/profiles";
 import { isValidHex, normaliseHex } from "../src/color/srgb";
-import { buildDraft, type Draft } from "../src/color/scale";
+import { baselineInversionWarnings, buildDraft, type Draft } from "../src/color/scale";
 import { auditDraft, draftAsIntent } from "../src/color/audit";
 import { exportJson } from "../src/color/export";
 import { DEFAULT_CONTRAST_POLICY, type ContrastPolicy } from "../src/color/solver";
@@ -96,8 +97,11 @@ function parseArgs(argv: string[]): Args {
   const explicitName = get("--name");
 
   const bgLight = get("--bg-light");
+  if (bgLight === undefined && argv.includes("--bg-light")) fail("--bg-light requires a hex value");
   if (bgLight !== undefined && !isValidHex(bgLight)) fail(`"${bgLight}" is not a valid hex colour`);
+
   const bgDark = get("--bg-dark");
+  if (bgDark === undefined && argv.includes("--bg-dark")) fail("--bg-dark requires a hex value");
   if (bgDark !== undefined && !isValidHex(bgDark)) fail(`"${bgDark}" is not a valid hex colour`);
 
   const audit = has("--audit");
@@ -122,16 +126,12 @@ function parseArgs(argv: string[]): Args {
 
 const args = parseArgs(process.argv.slice(2));
 const baseProfile = findProfile(args.profileId);
-// Same override `App.tsx`'s `profile` useMemo applies for the UI's baseline
-// background control — a profile supplies role names and step placement, not
-// the page the scale solves against.
-const profile: Profile = {
-  ...baseProfile,
-  modes: {
-    light: { ...baseProfile.modes.light, background: args.bgLight },
-    dark: { ...baseProfile.modes.dark, background: args.bgDark },
-  },
-};
+const profile = withBaseline(baseProfile, args.bgLight, args.bgDark);
+
+for (const warning of baselineInversionWarnings(args.bgLight, args.bgDark)) {
+  console.error(`generate: warning: ${warning}`);
+}
+
 const draft = buildDraft(profile, args.name, args.seed, args.policy);
 
 const result: Record<string, unknown> = args.scale
