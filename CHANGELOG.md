@@ -8,41 +8,27 @@ All notable changes to this project are documented here. Format follows
 
 ### Added
 
-- A warning banner when the light- and dark-mode baseline backgrounds are
-  set the wrong way round for their mode (e.g. light mode's reads as dark),
-  since that silently flips which direction "more separated" means for
-  that mode with no other cue on the page.
+- A warning (UI banner, and a matching CLI message) when the light- and
+  dark-mode baseline backgrounds are set the wrong way round for their
+  mode (e.g. light mode's reads as dark), since that silently flips which
+  direction "more separated" means for that mode with no other cue.
 - `npm run generate` accepts `--bg-light`/`--bg-dark` to override the
   baseline background, matching the UI's "Baseline background" control —
   previously the CLI always solved against the shared default with no way
-  to reproduce a UI override. Also warns (without failing) when the pair
-  is inverted, same as the UI banner above.
+  to reproduce a UI override.
 - An "About Colour Forge" dialog, opened from a header info button, with
   condensed docs (the contrast model, Lc, pinning, CVD, profiles) and a
-  link to the full README.
+  link to the full README. Closes via its own X button, Escape, or a
+  click on the backdrop (but not a text selection dragged past its edge).
 
 ### Changed
 
 - The baseline background colour pickers now debounce their commit instead
-  of re-solving both modes on every `onChange` tick while dragging, and
-  flush immediately once the picker closes rather than waiting out the
-  debounce.
+  of re-solving both modes on every `onChange` tick while dragging. A
+  direct commit (typed hex, "Reset to default") always takes precedence
+  over a still-pending drag, and a completed drag commits as soon as the
+  picker closes rather than waiting out the debounce.
 - Renamed the "Design a colour" section title to "Set up your palette".
-
-### Fixed
-
-- A pending debounced colour-picker commit could fire after a "Reset to
-  default" click or a typed hex value and silently overwrite it; direct
-  commits now cancel any pending drag commit for the same field first.
-- Typing an invalid hex into a baseline field and blurring it used to
-  cancel a still-pending drag commit and then no-op on the invalid text,
-  silently discarding both; the pending drag now survives an invalid
-  typed value instead.
-- A fully swapped baseline pair's warning is one combined message again
-  ("both read as the wrong mode"), not two separately-worded sentences.
-- The About dialog could close mid-way through selecting its text, if the
-  selection drag ended outside the dialog's box — now also covers a
-  touch-selection drag, not just a mouse one.
 
 ## [0.5.9] - 2026-09-24
 

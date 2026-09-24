@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { LC_EXPLANATION } from "../color/apca";
+import { CVD_MEASUREMENT_EXPLANATION } from "../color/cvd";
 import { VERDICT_EXPLANATIONS, VERDICT_LABELS, type ContrastVerdict } from "../color/solver";
 
 /** Verdicts a badge actually shows in the app. `pinned` is left out here —
@@ -107,8 +108,7 @@ export const AboutDialog = memo(function AboutDialog({
         <h3>Colour-vision deficiency</h3>
         <p>
           Simulation is Machado, Oliveira &amp; Fernandes (2009) at 100% severity, toggleable across
-          every swatch, table and preview at once. Measurements always come from the real colours;
-          simulating and then measuring would report contrast for vision nobody has.
+          every swatch, table and preview at once. {CVD_MEASUREMENT_EXPLANATION}
         </p>
 
         <h3>Profiles</h3>

@@ -112,7 +112,7 @@ carries the requirement instead).
 
 Simulation is Machado, Oliveira & Fernandes (2009) at 100% severity, in
 linear light, toggleable across every swatch, table and preview at once.
-Measurements always come from the real colours. Simulating and then
+Measurements always come from the real colours; simulating and then
 measuring would report contrast for vision nobody has.
 
 The separation floor isn't one number for the whole system: a role that

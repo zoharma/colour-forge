@@ -146,7 +146,16 @@ function useDebouncedCommit(commit: (next: string) => void, delayMs = 120) {
   const onDrag = useCallback(
     (next: string) => {
       cancelPending();
-      pendingRef.current = { value: next, timeoutId: setTimeout(() => commit(next), delayMs) };
+      const timeoutId = setTimeout(() => {
+        // Clear before committing, not after: `commit` can synchronously
+        // trigger a re-render (and with it, this same effect's cleanup),
+        // and a stale entry left in `pendingRef` after the timer that owns
+        // it already fired would otherwise still read as "a commit is
+        // outstanding" to `onSettle` below.
+        pendingRef.current = null;
+        commit(next);
+      }, delayMs);
+      pendingRef.current = { value: next, timeoutId };
     },
     [commit, delayMs, cancelPending],
   );

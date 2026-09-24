@@ -35,6 +35,16 @@ export const CVD_LABELS: Record<CvdView, string> = {
   achromatomaly: "Achromatomaly",
 };
 
+/** Why every measurement in the app stays honest under simulation, shared
+ *  verbatim by the About dialog and (in matching words) README.md, since
+ *  markdown can't import this — see `LC_EXPLANATION` in apca.ts for the
+ *  same pattern. `ScalePanel.tsx`'s own version of this reasoning is a code
+ *  comment for a reader of that file, not user-facing copy, so it stays
+ *  separate rather than importing this. */
+export const CVD_MEASUREMENT_EXPLANATION =
+  "Measurements always come from the real colours; simulating and then measuring would report " +
+  "contrast for vision nobody has.";
+
 const MATRICES: Record<CvdType, number[][]> = {
   protanopia: [
     [0.152286, 1.052583, -0.204868],
