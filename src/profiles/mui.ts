@@ -1,6 +1,6 @@
 import { buildDraft } from "../color/scale";
 import { MATERIAL_500, MUI_DEFAULT_INTENTS } from "./material";
-import type { Profile, SeededIntent } from "./types";
+import { BASELINE_BACKGROUND, type Profile, type SeededIntent } from "./types";
 
 /** MUI / Material Design 2 — the palette most non-Diamond work already ships.
  *
@@ -42,7 +42,7 @@ const base: Omit<Profile, "family"> = {
 
   modes: {
     light: {
-      background: "#fbfbfd",
+      background: BASELINE_BACKGROUND.light,
       surface: "#ffffff",
       onSurface: "#16181d",
       targetLc: [3, 8, 16, 30, 45, 58, 66, 75, 85, 90, 94, 98],
@@ -50,7 +50,7 @@ const base: Omit<Profile, "family"> = {
       selector: ':root, [data-theme="light"]',
     },
     dark: {
-      background: "#0b0d12",
+      background: BASELINE_BACKGROUND.dark,
       surface: "#14161d",
       onSurface: "#e8eaf0",
       targetLc: [3, 8, 15, 24, 34, 48, 62, 74, 84, 90, 94, 98],

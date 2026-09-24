@@ -1,4 +1,4 @@
-import type { Profile } from "./types";
+import { BASELINE_BACKGROUND, type Profile } from "./types";
 
 /** A design-system-agnostic role set.
  *
@@ -42,7 +42,7 @@ export const genericProfile: Profile = {
 
   modes: {
     light: {
-      background: "#fbfbfd",
+      background: BASELINE_BACKGROUND.light,
       surface: "#ffffff",
       onSurface: "#16181d",
       targetLc: [3, 8, 16, 30, 45, 58, 66, 75, 85, 90, 94, 98],
@@ -50,7 +50,7 @@ export const genericProfile: Profile = {
       selector: ':root, [data-theme="light"]',
     },
     dark: {
-      background: "#0b0d12",
+      background: BASELINE_BACKGROUND.dark,
       surface: "#14161d",
       onSurface: "#e8eaf0",
       targetLc: [3, 8, 15, 24, 34, 48, 62, 74, 84, 90, 94, 98],

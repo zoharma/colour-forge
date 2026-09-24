@@ -4,6 +4,22 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.9] - 2026-09-24
+
+### Added
+
+- "Baseline background" control: the page colour every scale solves against
+  is now independent of the design system picked, overridable live (light
+  and dark), and shared in a link's URL.
+
+### Changed
+
+- Every profile now solves its scale against the same background by
+  default, instead of each declaring its own — a design system's real
+  background no longer silently shifted the solved colours. A role's own
+  WCAG requirement (e.g. Carbon's `border`) can still push a step off that
+  shared baseline; that divergence is unchanged and intended.
+
 ## [0.5.8] - 2026-09-21
 
 ### Added

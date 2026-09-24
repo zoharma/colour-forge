@@ -1,4 +1,4 @@
-import type { Profile } from "./types";
+import { BASELINE_BACKGROUND, type Profile } from "./types";
 
 /** IBM Carbon Design System.
  *
@@ -8,10 +8,12 @@ import type { Profile } from "./types";
  *  neutral elevation tokens (the app shell's stacking order), not per-colour
  *  ones — there is no shipped "layer-accent, but red" — so this profile
  *  reuses the vocabulary for a tinted per-intent equivalent rather than
- *  claiming these particular values are shipped. `background`, `surface`
- *  (Carbon's real `layer-01`) and `onSurface` (Carbon's real `text-primary`)
- *  below *are* the genuine neutral values; only the six per-intent roles are
- *  this tool's own extrapolation onto Carbon's naming.
+ *  claiming these particular values are shipped. `surface` (Carbon's real
+ *  `layer-01`) and `onSurface` (Carbon's real `text-primary`) below *are*
+ *  the genuine neutral values; `background` is the tool's shared solving
+ *  baseline (`BASELINE_BACKGROUND`), not Carbon's own page colour — only the
+ *  six per-intent roles are this tool's own extrapolation onto Carbon's
+ *  naming.
  *
  *  `layerAccent` sits at the step this tool's other profiles call `solid` —
  *  the vivid, identity-carrying, needs-a-foreground fill — since it is the
@@ -50,7 +52,7 @@ export const carbonProfile: Profile = {
   description:
     "Carbon's own Layer/Border/Text token names — background, layer, layer-accent, border, text-primary, text-secondary — seeded from Carbon's colour scales and checked against its shipped interactive and support (error/success/warning/info) colours.",
   provenance:
-    "Role names follow Carbon's own token groups (Layer, Border, Text); the six per-intent roles are this tool's extrapolation onto that naming, since Carbon's real versions are neutral elevation tokens. background/surface/onSurface, seedPalette and family below are the real values from @carbon/themes (White, g100) and @carbon/colors v11.",
+    "Role names follow Carbon's own token groups (Layer, Border, Text); the six per-intent roles are this tool's extrapolation onto that naming, since Carbon's real versions are neutral elevation tokens. surface/onSurface, seedPalette and family below are the real values from @carbon/themes (White, g100) and @carbon/colors v11; background is the tool's shared solving baseline, not Carbon's own page colour.",
   scaleSize: 12,
 
   /** Carbon's own text-on-colour pairings are exact, defined values (its Tag
@@ -62,7 +64,7 @@ export const carbonProfile: Profile = {
 
   modes: {
     light: {
-      background: "#ffffff",
+      background: BASELINE_BACKGROUND.light,
       surface: "#f4f4f4",
       onSurface: "#161616",
       targetLc: [3, 8, 16, 30, 45, 58, 66, 75, 85, 90, 94, 98],
@@ -70,7 +72,7 @@ export const carbonProfile: Profile = {
       selector: ':root, [data-carbon-theme="white"]',
     },
     dark: {
-      background: "#161616",
+      background: BASELINE_BACKGROUND.dark,
       surface: "#262626",
       onSurface: "#f4f4f4",
       targetLc: [3, 8, 15, 24, 34, 48, 62, 74, 84, 90, 94, 98],

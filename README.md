@@ -122,10 +122,15 @@ same floor would condemn the whole container system (floor 6, warning).
 A profile is what makes the tool specific to one design system: role names,
 what each is used for, which scale step it claims per mode, CSS naming, and
 the existing intents to check a new colour against. The
-`targetLc`/`chromaMultiplier` curve is **not** part of that — every profile
-shares one curve, tuned once against a sweep of Material's 19 hues. A
+`targetLc`/`chromaMultiplier` curve and the solving `background` are **not**
+part of that — every profile shares one curve and one page background
+(`BASELINE_BACKGROUND`), tuned once against a sweep of Material's 19 hues. A
 profile's character comes from its token names and step choices, never a
-bespoke curve.
+bespoke curve or its own background. The "Baseline background" control in
+the app overrides that shared background live, independent of the design
+system picked; until a colour is checked against a system's own real page,
+its reported contrast numbers are honest against whichever baseline is
+selected, not necessarily that system's literal background.
 
 The full rationale behind each profile's choices lives in its own doc
 comment (`src/profiles/*.ts`), not here:
@@ -143,9 +148,10 @@ comment (`src/profiles/*.ts`), not here:
   every step index fitted against `@material/web`'s real light/dark values.
 - **IBM Carbon** (`carbon.ts`) — Carbon's Layer-group naming
   (`background`/`layer`/`layer-accent`/`border`) plus its two text weights.
-  `background`, `surface` and `onSurface` are Carbon's real neutral tokens;
-  the six per-intent roles are this tool's own extrapolation onto that
-  naming.
+  `surface` and `onSurface` are Carbon's real neutral tokens (`background` is
+  only the default baseline, overridable from the UI, same as every
+  profile); the six per-intent roles are this tool's own extrapolation onto
+  that naming.
 - **Diamond Light Source** (`diamond.ts`) — the `--ds-*` role set from
   [sci-react-ui](https://github.com/DiamondLightSource/sci-react-ui), with
   all nine shipped intents loaded as the comparison family.

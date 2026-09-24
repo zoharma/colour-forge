@@ -1,4 +1,4 @@
-import type { Profile } from "./types";
+import { BASELINE_BACKGROUND, type Profile } from "./types";
 
 /** Diamond Light Source — sci-react-ui's DiamondDS theme.
  *
@@ -14,8 +14,11 @@ import type { Profile } from "./types";
  *  role beside it, needs more. See `generic.ts` for the full reasoning.
  *
  *  Curves are shared with `generic`, tuned once against a sweep of
- *  Material's 19 hues — Diamond's backgrounds are close enough that
- *  re-tuning from scratch would just rediscover the same numbers. */
+ *  Material's 19 hues. `background` below is the tool's shared solving
+ *  baseline (`BASELINE_BACKGROUND`), not Diamond's own page colour —
+ *  DiamondDS's real values are `#f6f6f9` light / `#0e1017` dark, close
+ *  enough to the baseline that re-tuning the curve from scratch would just
+ *  rediscover the same numbers. */
 export const diamondProfile: Profile = {
   id: "diamond",
   name: "Diamond Light Source (DiamondDS)",
@@ -27,7 +30,7 @@ export const diamondProfile: Profile = {
 
   modes: {
     light: {
-      background: "#f6f6f9",
+      background: BASELINE_BACKGROUND.light,
       surface: "#ffffff",
       onSurface: "#1a1c23",
       targetLc: [3, 8, 16, 30, 45, 58, 66, 75, 85, 90, 94, 98],
@@ -35,7 +38,7 @@ export const diamondProfile: Profile = {
       selector: ':root, [data-mode="light"]',
     },
     dark: {
-      background: "#0e1017",
+      background: BASELINE_BACKGROUND.dark,
       surface: "#161820",
       onSurface: "#e8eaf0",
       targetLc: [3, 8, 15, 24, 34, 48, 62, 74, 84, 90, 94, 98],
