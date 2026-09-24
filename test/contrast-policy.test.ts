@@ -270,28 +270,36 @@ describe("the shared solving background", () => {
   });
 
   it("still lets a role's own WCAG requirement diverge a profile from the shared baseline", () => {
-    // The concrete case that motivated the shared baseline: light-mode step
-    // 5 (index 4) is generic's "container" (requirement "none") but
-    // Carbon's "border" (requirement "non-text", 3:1) — these used to
-    // differ partly because of a different background, and partly because
-    // of this real per-role requirement. Sharing the background removed the
-    // first cause; this asserts the second, legitimate one is still there.
+    // Light-mode step 5 (index 4) is generic's "container" (requirement
+    // "none") but Carbon's "border" (requirement "non-text", 3:1) — these
+    // used to differ partly because of a different background, and partly
+    // because of this real per-role requirement. Sharing the background
+    // removed the first cause; this asserts the second, legitimate one is
+    // still there — across several hue families, not just #9c27b0 (the
+    // case that originally motivated the shared baseline), per this
+    // project's own rule against validating a solver change on one seed.
     //
-    // Dark mode's index 4 is deliberately not asserted to diverge here:
+    // Dark mode's index 4 is deliberately asserted to *converge* instead:
     // generic's "solid" and Carbon's "layerAccent" both carry the same
     // "non-text" requirement there, so with the background now shared too
-    // they correctly land on the *same* hex — itself a confirmation that
-    // divergence tracks the requirement, not the profile.
-    const seed = "#9c27b0";
-    const genericLight = generateScale(genericProfile, "light", seed)[4]!;
-    const carbonLight = generateScale(carbonProfile, "light", seed)[4]!;
-    expect(carbonLight.hex).not.toBe(genericLight.hex);
-    expect(carbonLight.verdict).toBe("wcag-bound");
-    expect(genericLight.verdict).toBe("apca-met");
+    // they correctly land on the same hex for every one of these hues —
+    // itself a confirmation that divergence tracks the requirement, not
+    // the profile.
+    const seeds = ["#9c27b0", "#e53935", "#43a047", "#1e88e5", "#fb8c00"];
+    for (const seed of seeds) {
+      const genericLight = generateScale(genericProfile, "light", seed)[4]!;
+      const carbonLight = generateScale(carbonProfile, "light", seed)[4]!;
+      // generic's own verdict isn't asserted here — a saturated hue can
+      // legitimately need hue-protection regardless of requirement, and
+      // that's not what this test is about. What matters is that Carbon's
+      // requirement, not generic's lack of one, is what's binding here.
+      expect(carbonLight.hex, seed).not.toBe(genericLight.hex);
+      expect(carbonLight.verdict, seed).toBe("wcag-bound");
 
-    const genericDark = generateScale(genericProfile, "dark", seed)[4]!;
-    const carbonDark = generateScale(carbonProfile, "dark", seed)[4]!;
-    expect(carbonDark.hex).toBe(genericDark.hex);
+      const genericDark = generateScale(genericProfile, "dark", seed)[4]!;
+      const carbonDark = generateScale(carbonProfile, "dark", seed)[4]!;
+      expect(carbonDark.hex, seed).toBe(genericDark.hex);
+    }
   });
 });
 

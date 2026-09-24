@@ -83,6 +83,19 @@ function commitHexTo(value: string, setValue: (next: string) => void, setDraft: 
   setDraft(next);
 }
 
+/** A hex field's committed value, its live-typed draft, and the two setters
+ *  a text input needs (setDraft for every keystroke, commit for blur/Enter)
+ *  — one implementation shared by the seed and both baseline fields, rather
+ *  than three hand-rolled (value, draft, commit) triples. Returned as a
+ *  tuple so each call site can destructure straight into its existing
+ *  variable names. */
+function useHexField(initial: string): [string, string, (next: string) => void, (next: string) => void] {
+  const [value, setValue] = useState(initial);
+  const [draft, setDraft] = useState(initial);
+  const commit = useCallback((next: string) => commitHexTo(next, setValue, setDraft), []);
+  return [value, draft, setDraft, commit];
+}
+
 function readStored<T extends string>(key: string, fallback: T): T {
   try {
     return (localStorage.getItem(key) as T) ?? fallback;
@@ -95,15 +108,16 @@ export function App() {
   const initial = useMemo(readUrlState, []);
   const [profileId, setProfileId] = useState(initial.profileId);
   const [name, setName] = useState(initial.name);
-  const [seedHex, setSeedHex] = useState(initial.seedHex);
   const [policy, setPolicy] = useState<ContrastPolicy>(initial.policy);
   const [showScale, setShowScale] = useState(false);
   const [pin, setPin] = useState<PinSpec | undefined>(initial.pin);
-  const [hexDraft, setHexDraft] = useState(initial.seedHex);
-  const [baselineLight, setBaselineLight] = useState(initial.baselineLight);
-  const [baselineDark, setBaselineDark] = useState(initial.baselineDark);
-  const [baselineLightDraft, setBaselineLightDraft] = useState(initial.baselineLight);
-  const [baselineDarkDraft, setBaselineDarkDraft] = useState(initial.baselineDark);
+  const [seedHex, hexDraft, setHexDraft, commitHex] = useHexField(initial.seedHex);
+  const [baselineLight, baselineLightDraft, setBaselineLightDraft, commitBaselineLight] = useHexField(
+    initial.baselineLight,
+  );
+  const [baselineDark, baselineDarkDraft, setBaselineDarkDraft, commitBaselineDark] = useHexField(
+    initial.baselineDark,
+  );
   const [cvdView, setCvdView] = useState<CvdView>(() => readStored<CvdView>("cf-cvd", "none"));
   const [theme, setTheme] = useState<ThemeChoice>(() => readStored<ThemeChoice>("cf-theme", "system"));
   const [foregroundOverrides, setForegroundOverrides] = useState<Record<ModeKey, Record<string, string>>>({
@@ -194,18 +208,6 @@ export function App() {
     [profile, draft, familyWithDraft, foregroundOverrides],
   );
   const rows = useMemo(() => separationRows(profile, familyWithDraft), [profile, familyWithDraft]);
-
-  const commitHex = useCallback((value: string) => commitHexTo(value, setSeedHex, setHexDraft), []);
-
-  const commitBaselineLight = useCallback(
-    (value: string) => commitHexTo(value, setBaselineLight, setBaselineLightDraft),
-    [],
-  );
-
-  const commitBaselineDark = useCallback(
-    (value: string) => commitHexTo(value, setBaselineDark, setBaselineDarkDraft),
-    [],
-  );
 
   const resetBaseline = useCallback(() => {
     commitBaselineLight(BASELINE_BACKGROUND.light);
@@ -400,6 +402,7 @@ export function App() {
                         id="baseline-light"
                         type="text"
                         size={9}
+                        aria-label="Baseline background, light mode hex"
                         value={baselineLightDraft}
                         onChange={(e) => setBaselineLightDraft(e.target.value)}
                         onBlur={(e) => commitBaselineLight(e.target.value.trim())}
