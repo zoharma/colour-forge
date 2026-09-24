@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, Info, Monitor, Moon, Sun, SwatchBook } from "lucide-react";
 
 import { auditDraft, draftAsIntent, separationRows } from "./color/audit";
@@ -97,6 +97,26 @@ function useHexField(initial: string): [string, string, (next: string) => void, 
   return [value, draft, setDraft, commit];
 }
 
+/** `<input type="color">` fires `onChange` continuously while dragging in
+ *  some browsers, and each commit here triggers a full two-mode re-solve.
+ *  Collapsing a drag into one commit per pause avoids that — deliberately
+ *  not applied to the seed picker's `commitHex`, which keeps its existing
+ *  every-tick feel; background changes are safe to defer since nothing else
+ *  depends on seeing every intermediate baseline value. */
+function useDebouncedCommit(commit: (next: string) => void, delayMs = 120): (next: string) => void {
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => () => clearTimeout(timeoutRef.current), []);
+
+  return useCallback(
+    (next: string) => {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => commit(next), delayMs);
+    },
+    [commit, delayMs],
+  );
+}
+
 function readStored<T extends string>(key: string, fallback: T): T {
   try {
     return (localStorage.getItem(key) as T) ?? fallback;
@@ -120,6 +140,8 @@ export function App() {
   const [baselineDark, baselineDarkDraft, setBaselineDarkDraft, commitBaselineDark] = useHexField(
     initial.baselineDark,
   );
+  const debouncedCommitBaselineLight = useDebouncedCommit(commitBaselineLight);
+  const debouncedCommitBaselineDark = useDebouncedCommit(commitBaselineDark);
   const [cvdView, setCvdView] = useState<CvdView>(() => readStored<CvdView>("cf-cvd", "none"));
   const [theme, setTheme] = useState<ThemeChoice>(() => readStored<ThemeChoice>("cf-theme", "system"));
   const [foregroundOverrides, setForegroundOverrides] = useState<Record<ModeKey, Record<string, string>>>({
@@ -422,7 +444,7 @@ export function App() {
                         type="color"
                         value={baselineLight}
                         aria-label="Baseline background, light mode"
-                        onChange={(e) => commitBaselineLight(e.target.value)}
+                        onChange={(e) => debouncedCommitBaselineLight(e.target.value)}
                       />
                       <input
                         id="baseline-light"
@@ -442,7 +464,7 @@ export function App() {
                         type="color"
                         value={baselineDark}
                         aria-label="Baseline background, dark mode"
-                        onChange={(e) => commitBaselineDark(e.target.value)}
+                        onChange={(e) => debouncedCommitBaselineDark(e.target.value)}
                       />
                       <input
                         id="baseline-dark"

@@ -16,6 +16,15 @@ All notable changes to this project are documented here. Format follows
   baseline background, matching the UI's "Baseline background" control —
   previously the CLI always solved against the shared default with no way
   to reproduce a UI override.
+- An "About Colour Forge" dialog, opened from a header info button, with
+  condensed docs (the contrast model, Lc, pinning, CVD, profiles) and a
+  link to the full README.
+
+### Changed
+
+- The baseline background colour pickers now debounce their commit instead
+  of re-solving both modes on every `onChange` tick while dragging.
+- Renamed the "Design a colour" section title to "Set up your palette".
 
 ## [0.5.9] - 2026-09-24
 
