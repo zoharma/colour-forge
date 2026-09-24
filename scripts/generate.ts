@@ -3,13 +3,22 @@
  *  stdout, in the same shape as the "Export JSON" panel.
  *
  *  Usage: npm run generate -- --seed "#3366ff" [name] [--profile mui]
- *         [--policy wcag-relaxed] [--audit]
+ *         [--policy wcag-relaxed] [--bg-light "#fff"] [--bg-dark "#111"]
+ *         [--audit]
  *         [--scale] (prints just the raw ramp instead of the named roles)
  *
  *  The intent name can be given positionally ("blue") or as --name "blue";
  *  --name wins if both are given. */
 
-import { findProfile, DEFAULT_PROFILE_ID, PROFILES, displayStep, type ModeKey, type Profile } from "../src/profiles";
+import {
+  findProfile,
+  DEFAULT_PROFILE_ID,
+  PROFILES,
+  BASELINE_BACKGROUND,
+  displayStep,
+  type ModeKey,
+  type Profile,
+} from "../src/profiles";
 import { isValidHex, normaliseHex } from "../src/color/srgb";
 import { buildDraft, type Draft } from "../src/color/scale";
 import { auditDraft, draftAsIntent } from "../src/color/audit";
@@ -46,6 +55,8 @@ interface Args {
   profileId: string;
   policy: ContrastPolicy;
   name: string;
+  bgLight: string;
+  bgDark: string;
   audit: boolean;
   scale: boolean;
 }
@@ -83,6 +94,12 @@ function parseArgs(argv: string[]): Args {
   }
 
   const explicitName = get("--name");
+
+  const bgLight = get("--bg-light");
+  if (bgLight !== undefined && !isValidHex(bgLight)) fail(`"${bgLight}" is not a valid hex colour`);
+  const bgDark = get("--bg-dark");
+  if (bgDark !== undefined && !isValidHex(bgDark)) fail(`"${bgDark}" is not a valid hex colour`);
+
   const audit = has("--audit");
   const scale = has("--scale");
 
@@ -96,13 +113,25 @@ function parseArgs(argv: string[]): Args {
     profileId,
     policy: policyInput,
     name: explicitName ?? positionalName ?? seed,
+    bgLight: bgLight ? normaliseHex(bgLight) : BASELINE_BACKGROUND.light,
+    bgDark: bgDark ? normaliseHex(bgDark) : BASELINE_BACKGROUND.dark,
     audit,
     scale,
   };
 }
 
 const args = parseArgs(process.argv.slice(2));
-const profile = findProfile(args.profileId);
+const baseProfile = findProfile(args.profileId);
+// Same override `App.tsx`'s `profile` useMemo applies for the UI's baseline
+// background control — a profile supplies role names and step placement, not
+// the page the scale solves against.
+const profile: Profile = {
+  ...baseProfile,
+  modes: {
+    light: { ...baseProfile.modes.light, background: args.bgLight },
+    dark: { ...baseProfile.modes.dark, background: args.bgDark },
+  },
+};
 const draft = buildDraft(profile, args.name, args.seed, args.policy);
 
 const result: Record<string, unknown> = args.scale

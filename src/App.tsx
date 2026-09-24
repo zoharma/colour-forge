@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronRight, Monitor, Moon, Sun, SwatchBook } from "lucide-react";
+import { ChevronRight, Info, Monitor, Moon, Sun, SwatchBook } from "lucide-react";
 
 import { auditDraft, draftAsIntent, separationRows } from "./color/audit";
 import type { CvdView } from "./color/cvd";
@@ -8,7 +8,7 @@ import {
   POLICY_LABELS,
   type ContrastPolicy,
 } from "./color/solver";
-import { buildDraft } from "./color/scale";
+import { buildDraft, isLightBackground } from "./color/scale";
 import { suggestPin, type PinSpec } from "./color/pin";
 import { isValidHex, normaliseHex } from "./color/srgb";
 import {
@@ -21,6 +21,7 @@ import {
 } from "./profiles";
 import { POLICY_SLUGS, policyFromSlug } from "./urlPolicySlug";
 import { CVD_LABELS } from "./color/cvd";
+import { AboutDialog } from "./ui/AboutDialog";
 import { CvdControl, CVD_NOTES } from "./ui/CvdControl";
 import { ExportPanel } from "./ui/ExportPanel";
 import { FamilyTable } from "./ui/FamilyTable";
@@ -110,6 +111,7 @@ export function App() {
   const [name, setName] = useState(initial.name);
   const [policy, setPolicy] = useState<ContrastPolicy>(initial.policy);
   const [showScale, setShowScale] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [pin, setPin] = useState<PinSpec | undefined>(initial.pin);
   const [seedHex, hexDraft, setHexDraft, commitHex] = useHexField(initial.seedHex);
   const [baselineLight, baselineLightDraft, setBaselineLightDraft, commitBaselineLight] = useHexField(
@@ -155,6 +157,22 @@ export function App() {
     }),
     [baseProfile, baselineLight, baselineDark],
   );
+
+  // `isLightBackground` decides "is this mode's page light or dark" purely
+  // from the background's own luminance, so a baseline pair the wrong way
+  // round (light mode's darker than dark mode's, or just both on the same
+  // side) flips that per-mode call and solves the panel as if it were the
+  // other mode, with nothing else on the page explaining why.
+  const baselineWarning = useMemo(() => {
+    const lightReadsDark = !isLightBackground(baselineLight);
+    const darkReadsLight = isLightBackground(baselineDark);
+    if (lightReadsDark && darkReadsLight) {
+      return "Both baseline backgrounds read as the wrong mode: light mode's measures as dark and dark mode's measures as light. Both panels below will solve backwards.";
+    }
+    if (lightReadsDark) return "The light-mode baseline measures as dark, so the light panel below will solve as if it were dark mode.";
+    if (darkReadsLight) return "The dark-mode baseline measures as light, so the dark panel below will solve as if it were light mode.";
+    return undefined;
+  }, [baselineLight, baselineDark]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -276,6 +294,14 @@ export function App() {
             </div>
           </div>
           <div className="view-controls">
+            <button
+              type="button"
+              className="btn tiny ghost about-trigger"
+              aria-label="About Colour Forge"
+              onClick={() => setShowAbout(true)}
+            >
+              <Info size={15} aria-hidden="true" />
+            </button>
             <CvdControl view={cvdView} onChange={setCvdView} />
             <div className="segmented" role="group" aria-label="Page theme">
               {(["system", "light", "dark"] as ThemeChoice[]).map((choice) => {
@@ -311,11 +337,10 @@ export function App() {
 
         <section>
           <p className="eyebrow">1 · Input</p>
-          <h2 className="section-title">Design a colour</h2>
+          <h2 className="section-title">Set up your palette</h2>
           <p className="section-note">
             Pick a seed colour and a baseline background below, and a design system to draw its role
-            names and tokens from. Colour Forge solves a full light- and dark-mode role set from it,
-            then checks every role against APCA, WCAG 2.2 and colour-vision deficiency.
+            names and tokens from.
           </p>
 
           <details className="advanced">
@@ -332,10 +357,11 @@ export function App() {
                 badge appears on any role where those disagreed.
               </p>
               <p className="section-note" style={{ marginBottom: 0 }}>
-                APCA targets run from Lc 45 for non-text elements, Lc 60 for large text, up to Lc 75+ for
-                body copy — APCA scores those two differently even though WCAG doesn't. WCAG 2.2 asks for a
-                ratio of at least 3:1 for large text or non-text, 4.5:1 for normal body text, and 7:1 where
-                AAA is required.
+                APCA reports contrast as <b>Lc</b> ("Lightness Contrast"), a signed 0–108ish score rather
+                than a ratio — badges here show its magnitude. Targets run from Lc 45 for non-text
+                elements, Lc 60 for large text, up to Lc 75+ for body copy — APCA scores those two
+                differently even though WCAG doesn't. WCAG 2.2 asks for a ratio of at least 3:1 for large
+                text or non-text, 4.5:1 for normal body text, and 7:1 where AAA is required.
               </p>
             </div>
           </details>
@@ -435,6 +461,11 @@ export function App() {
                       Reset to default
                     </button>
                   </div>
+                  {baselineWarning && (
+                    <p className="banner" role="alert">
+                      <strong>Baseline backgrounds look inverted.</strong> {baselineWarning}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -596,6 +627,8 @@ export function App() {
           </div>
         </section>
       </div>
+
+      <AboutDialog open={showAbout} onClose={() => setShowAbout(false)} />
     </>
   );
 }

@@ -4,6 +4,19 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- A warning banner when the light- and dark-mode baseline backgrounds are
+  set the wrong way round for their mode (e.g. light mode's reads as dark),
+  since that silently flips which direction "more separated" means for
+  that mode with no other cue on the page.
+- `npm run generate` accepts `--bg-light`/`--bg-dark` to override the
+  baseline background, matching the UI's "Baseline background" control —
+  previously the CLI always solved against the shared default with no way
+  to reproduce a UI override.
+
 ## [0.5.9] - 2026-09-24
 
 ### Added
