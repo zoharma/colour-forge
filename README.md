@@ -7,9 +7,9 @@ light and dark, then check it against APCA, WCAG 2.2 and colour-vision
 deficiency before it reaches a token file.
 
 APCA reports contrast as **Lc** ("Lightness Contrast"): a signed score,
-roughly 0 to 108, rather than a ratio. Every Lc figure in the app and in
-this doc is shown as a magnitude; its sign (not surfaced here) just tracks
-which side of the background the foreground sits on.
+roughly 0 to 108, rather than a ratio. Positive means dark text on a light
+background, negative means light text on a dark one; most figures shown
+(here and in the app) are the magnitude.
 
 Not tied to any one design system: role names, usage, scale curves, token
 naming and the existing intent family all come from a *profile*. Diamond Light

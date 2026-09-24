@@ -16,12 +16,11 @@ import {
   PROFILES,
   BASELINE_BACKGROUND,
   displayStep,
-  withBaseline,
   type ModeKey,
   type Profile,
 } from "../src/profiles";
 import { isValidHex, normaliseHex } from "../src/color/srgb";
-import { baselineInversionWarnings, buildDraft, type Draft } from "../src/color/scale";
+import { applyBaseline, buildDraft, type Draft } from "../src/color/scale";
 import { auditDraft, draftAsIntent } from "../src/color/audit";
 import { exportJson } from "../src/color/export";
 import { DEFAULT_CONTRAST_POLICY, type ContrastPolicy } from "../src/color/solver";
@@ -96,13 +95,17 @@ function parseArgs(argv: string[]): Args {
 
   const explicitName = get("--name");
 
-  const bgLight = get("--bg-light");
-  if (bgLight === undefined && argv.includes("--bg-light")) fail("--bg-light requires a hex value");
-  if (bgLight !== undefined && !isValidHex(bgLight)) fail(`"${bgLight}" is not a valid hex colour`);
-
-  const bgDark = get("--bg-dark");
-  if (bgDark === undefined && argv.includes("--bg-dark")) fail("--bg-dark requires a hex value");
-  if (bgDark !== undefined && !isValidHex(bgDark)) fail(`"${bgDark}" is not a valid hex colour`);
+  // Shared by both baseline flags: fails if given with no value (like
+  // --seed), fails if given an invalid hex, and falls back to the shared
+  // default when not given at all.
+  const getHexFlag = (flag: string, fallback: string): string => {
+    const raw = get(flag);
+    if (raw === undefined && argv.includes(flag)) fail(`${flag} requires a hex value`);
+    if (raw !== undefined && !isValidHex(raw)) fail(`"${raw}" is not a valid hex colour`);
+    return raw ? normaliseHex(raw) : fallback;
+  };
+  const bgLight = getHexFlag("--bg-light", BASELINE_BACKGROUND.light);
+  const bgDark = getHexFlag("--bg-dark", BASELINE_BACKGROUND.dark);
 
   const audit = has("--audit");
   const scale = has("--scale");
@@ -117,8 +120,8 @@ function parseArgs(argv: string[]): Args {
     profileId,
     policy: policyInput,
     name: explicitName ?? positionalName ?? seed,
-    bgLight: bgLight ? normaliseHex(bgLight) : BASELINE_BACKGROUND.light,
-    bgDark: bgDark ? normaliseHex(bgDark) : BASELINE_BACKGROUND.dark,
+    bgLight,
+    bgDark,
     audit,
     scale,
   };
@@ -126,9 +129,9 @@ function parseArgs(argv: string[]): Args {
 
 const args = parseArgs(process.argv.slice(2));
 const baseProfile = findProfile(args.profileId);
-const profile = withBaseline(baseProfile, args.bgLight, args.bgDark);
+const { profile, warnings: baselineWarnings } = applyBaseline(baseProfile, args.bgLight, args.bgDark);
 
-for (const warning of baselineInversionWarnings(args.bgLight, args.bgDark)) {
+for (const warning of baselineWarnings) {
   console.error(`generate: warning: ${warning}`);
 }
 

@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, Info, Monitor, Moon, Sun, SwatchBook } from "lucide-react";
 
 import { auditDraft, draftAsIntent, separationRows } from "./color/audit";
+import { LC_EXPLANATION } from "./color/apca";
 import type { CvdView } from "./color/cvd";
 import {
   POLICY_DESCRIPTIONS,
   POLICY_LABELS,
   type ContrastPolicy,
 } from "./color/solver";
-import { baselineInversionWarnings, buildDraft } from "./color/scale";
+import { applyBaseline, buildDraft } from "./color/scale";
 import { suggestPin, type PinSpec } from "./color/pin";
 import { isValidHex, normaliseHex } from "./color/srgb";
 import {
@@ -16,7 +17,6 @@ import {
   DEFAULT_PROFILE_ID,
   PROFILES,
   findProfile,
-  withBaseline,
   type ModeKey,
   type SeededIntent,
 } from "./profiles";
@@ -110,29 +110,34 @@ function useHexField(initial: string): [string, string, (next: string) => void, 
  *    picker is dismissed — React's `onChange` for this element type is
  *    bound to `input`, which fires on every drag tick instead) and flushes
  *    immediately, so a completed drag settles as soon as it ends rather
- *    than waiting out the delay. It flushes `lastSeenRef`, not `el.value`:
- *    for a controlled input, React resets the DOM's own `.value` back to
- *    the last *committed* state right after handling each native `input`
- *    tick that didn't itself commit a new one, so by the time `change`
- *    fires, `el.value` is already stale — only the value React's own
- *    `onChange` actually saw (captured below, in `onDrag`) is trustworthy.
- *  - `cancelPending`, called by every other path that commits this same
- *    field directly (typed hex, "Reset to default"), so a still-pending
- *    drag commit can't fire afterwards and silently overwrite it. */
+ *    than waiting out the delay. It flushes `pendingRef.current.value`, not
+ *    `el.value`: for a controlled input, React resets the DOM's own
+ *    `.value` back to the last *committed* state right after handling each
+ *    native `input` tick that didn't itself commit a new one, so by the
+ *    time `change` fires, `el.value` is already stale — only the value
+ *    React's own `onChange` actually saw (captured below, in `onDrag`) is
+ *    trustworthy.
+ *  - `commitNow` is the only way this hook lets a caller commit outside of
+ *    a drag (typed hex, "Reset to default", and any future direct-commit
+ *    path) — it always cancels a pending drag commit first, so there's no
+ *    separate "remember to cancel" step a call site can forget. */
 function useDebouncedCommit(commit: (next: string) => void, delayMs = 120) {
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const inputRef = useRef<HTMLInputElement>(null);
-  const lastSeenRef = useRef<string>();
+  const pendingRef = useRef<{ timeoutId: ReturnType<typeof setTimeout>; value: string } | null>(null);
 
-  const cancelPending = useCallback(() => clearTimeout(timeoutRef.current), []);
+  const cancelPending = useCallback(() => {
+    if (pendingRef.current) clearTimeout(pendingRef.current.timeoutId);
+    pendingRef.current = null;
+  }, []);
   useEffect(() => cancelPending, [cancelPending]);
 
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
     const onSettle = () => {
+      const pending = pendingRef.current;
       cancelPending();
-      if (lastSeenRef.current !== undefined) commit(lastSeenRef.current);
+      if (pending) commit(pending.value);
     };
     el.addEventListener("change", onSettle);
     return () => el.removeEventListener("change", onSettle);
@@ -140,14 +145,30 @@ function useDebouncedCommit(commit: (next: string) => void, delayMs = 120) {
 
   const onDrag = useCallback(
     (next: string) => {
-      lastSeenRef.current = next;
       cancelPending();
-      timeoutRef.current = setTimeout(() => commit(next), delayMs);
+      pendingRef.current = { value: next, timeoutId: setTimeout(() => commit(next), delayMs) };
     },
     [commit, delayMs, cancelPending],
   );
 
-  return useMemo(() => ({ ref: inputRef, onDrag, cancelPending }), [onDrag, cancelPending]);
+  const commitNow = useCallback(
+    (next: string) => {
+      cancelPending();
+      commit(next);
+    },
+    [commit, cancelPending],
+  );
+
+  return useMemo(() => ({ ref: inputRef, onDrag, commitNow }), [onDrag, commitNow]);
+}
+
+/** The one place a typed baseline hex is validated before committing —
+ *  shared by both the light and dark fields' blur/Enter handlers, so a
+ *  malformed value can't cancel a still-pending drag commit and then no-op,
+ *  silently discarding both. */
+function commitTypedHex(raw: string, commitNow: (next: string) => void): void {
+  const trimmed = raw.trim();
+  if (isValidHex(trimmed)) commitNow(trimmed);
 }
 
 function readStored<T extends string>(key: string, fallback: T): T {
@@ -203,19 +224,13 @@ export function App() {
   // placement and CSS naming, not the page it's solved against. Every other
   // consumer of `profile` below (draft, audit, preview, export) sees this
   // overridden object, so the override only has to happen once, here.
-  const profile = useMemo(
-    () => withBaseline(baseProfile, baselineLight, baselineDark),
+  // `applyBaseline` (color/scale.ts) bundles the override with the inversion
+  // check below, so the two can't be wired up separately and drift apart.
+  const { profile, warnings: baselineWarnings } = useMemo(
+    () => applyBaseline(baseProfile, baselineLight, baselineDark),
     [baseProfile, baselineLight, baselineDark],
   );
-
-  // See `baselineInversionWarnings` in color/scale.ts: a baseline pair the
-  // wrong way round (light mode's darker than dark mode's, or both on the
-  // same side) flips which mode a panel solves as, with nothing else on the
-  // page explaining why.
-  const baselineWarning = useMemo(() => {
-    const warnings = baselineInversionWarnings(baselineLight, baselineDark);
-    return warnings.length ? warnings.join(" ") : undefined;
-  }, [baselineLight, baselineDark]);
+  const baselineWarning = baselineWarnings.length ? baselineWarnings.join(" ") : undefined;
 
   useEffect(() => {
     const root = document.documentElement;
@@ -271,11 +286,9 @@ export function App() {
   const rows = useMemo(() => separationRows(profile, familyWithDraft), [profile, familyWithDraft]);
 
   const resetBaseline = useCallback(() => {
-    baselineLightDebounce.cancelPending();
-    baselineDarkDebounce.cancelPending();
-    commitBaselineLight(BASELINE_BACKGROUND.light);
-    commitBaselineDark(BASELINE_BACKGROUND.dark);
-  }, [commitBaselineLight, commitBaselineDark, baselineLightDebounce, baselineDarkDebounce]);
+    baselineLightDebounce.commitNow(BASELINE_BACKGROUND.light);
+    baselineDarkDebounce.commitNow(BASELINE_BACKGROUND.dark);
+  }, [baselineLightDebounce, baselineDarkDebounce]);
 
   const setForeground = (mode: ModeKey, roleKey: string, label: string) =>
     setForegroundOverrides((prev) => ({ ...prev, [mode]: { ...prev[mode], [roleKey]: label } }));
@@ -402,8 +415,7 @@ export function App() {
                 badge appears on any role where those disagreed.
               </p>
               <p className="section-note" style={{ marginBottom: 0 }}>
-                APCA reports contrast as <b>Lc</b> ("Lightness Contrast"), a signed 0–108ish score rather
-                than a ratio — badges here show its magnitude. Targets run from Lc 45 for non-text
+                APCA reports contrast as <b>Lc</b> {LC_EXPLANATION} Targets run from Lc 45 for non-text
                 elements, Lc 60 for large text, up to Lc 75+ for body copy — APCA scores those two
                 differently even though WCAG doesn't. WCAG 2.2 asks for a ratio of at least 3:1 for large
                 text or non-text, 4.5:1 for normal body text, and 7:1 where AAA is required.
@@ -477,15 +489,9 @@ export function App() {
                         aria-label="Baseline background, light mode hex"
                         value={baselineLightDraft}
                         onChange={(e) => setBaselineLightDraft(e.target.value)}
-                        onBlur={(e) => {
-                          baselineLightDebounce.cancelPending();
-                          commitBaselineLight(e.target.value.trim());
-                        }}
+                        onBlur={(e) => commitTypedHex(e.target.value, baselineLightDebounce.commitNow)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            baselineLightDebounce.cancelPending();
-                            commitBaselineLight(e.currentTarget.value.trim());
-                          }
+                          if (e.key === "Enter") commitTypedHex(e.currentTarget.value, baselineLightDebounce.commitNow);
                         }}
                       />
                     </div>
@@ -504,15 +510,9 @@ export function App() {
                         aria-label="Baseline background, dark mode hex"
                         value={baselineDarkDraft}
                         onChange={(e) => setBaselineDarkDraft(e.target.value)}
-                        onBlur={(e) => {
-                          baselineDarkDebounce.cancelPending();
-                          commitBaselineDark(e.target.value.trim());
-                        }}
+                        onBlur={(e) => commitTypedHex(e.target.value, baselineDarkDebounce.commitNow)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            baselineDarkDebounce.cancelPending();
-                            commitBaselineDark(e.currentTarget.value.trim());
-                          }
+                          if (e.key === "Enter") commitTypedHex(e.currentTarget.value, baselineDarkDebounce.commitNow);
                         }}
                       />
                     </div>

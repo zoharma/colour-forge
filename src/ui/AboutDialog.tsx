@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef } from "react";
 import { X } from "lucide-react";
+import { LC_EXPLANATION } from "../color/apca";
 import { VERDICT_EXPLANATIONS, VERDICT_LABELS, type ContrastVerdict } from "../color/solver";
 
 /** Verdicts a badge actually shows in the app. `pinned` is left out here —
@@ -22,12 +23,13 @@ export const AboutDialog = memo(function AboutDialog({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  // Whether the mouse actually went down on the backdrop (not just came up
+  // Whether the press actually started on the backdrop (not just ended
   // there) — a text selection started inside `.about-body` and dragged past
   // the dialog's edge before release lands its `click` on the dialog
   // element too (see the onClick guard below), and would otherwise close
-  // the dialog mid-selection.
-  const mouseDownOnBackdrop = useRef(false);
+  // the dialog mid-selection. Pointer events, not mouse events, so this
+  // also holds for a touch-selection drag, not just a mouse one.
+  const pointerDownOnBackdrop = useRef(false);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -42,8 +44,8 @@ export const AboutDialog = memo(function AboutDialog({
       className="about-dialog"
       aria-labelledby="about-title"
       onClose={onClose}
-      onMouseDown={(e) => {
-        mouseDownOnBackdrop.current = e.target === e.currentTarget;
+      onPointerDown={(e) => {
+        pointerDownOnBackdrop.current = e.target === e.currentTarget;
       }}
       // The dialog box itself has no padding of its own (see .about-dialog)
       // — the header/body children fill it edge to edge — so a click
@@ -51,7 +53,7 @@ export const AboutDialog = memo(function AboutDialog({
       // backdrop. Requiring the press to have *started* there too (not just
       // ended there) is what keeps a selection drag from closing this.
       onClick={(e) => {
-        if (e.target === e.currentTarget && mouseDownOnBackdrop.current) onClose();
+        if (e.target === e.currentTarget && pointerDownOnBackdrop.current) onClose();
       }}
     >
       <div className="about-header">
@@ -92,8 +94,7 @@ export const AboutDialog = memo(function AboutDialog({
           </tbody>
         </table>
         <p>
-          APCA reports contrast as <strong>Lc</strong> ("Lightness Contrast"): a signed score,
-          roughly 0 to 108, rather than a ratio. Every Lc figure in the app is shown as a magnitude.
+          APCA reports contrast as <strong>Lc</strong> {LC_EXPLANATION}
         </p>
 
         <h3>Pinning a seed to a role</h3>

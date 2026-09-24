@@ -34,8 +34,15 @@ All notable changes to this project are documented here. Format follows
 - A pending debounced colour-picker commit could fire after a "Reset to
   default" click or a typed hex value and silently overwrite it; direct
   commits now cancel any pending drag commit for the same field first.
+- Typing an invalid hex into a baseline field and blurring it used to
+  cancel a still-pending drag commit and then no-op on the invalid text,
+  silently discarding both; the pending drag now survives an invalid
+  typed value instead.
+- A fully swapped baseline pair's warning is one combined message again
+  ("both read as the wrong mode"), not two separately-worded sentences.
 - The About dialog could close mid-way through selecting its text, if the
-  selection drag ended outside the dialog's box.
+  selection drag ended outside the dialog's box — now also covers a
+  touch-selection drag, not just a mouse one.
 
 ## [0.5.9] - 2026-09-24
 

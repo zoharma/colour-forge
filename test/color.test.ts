@@ -336,9 +336,19 @@ describe("baseline inversion warnings", () => {
     expect(warnings[0]).toMatch(/dark-mode baseline measures as light/);
   });
 
-  it("flags both when the pair is fully swapped", () => {
+  it("flags a fully swapped pair as one combined message, not two", () => {
     const warnings = baselineInversionWarnings("#000000", "#ffffff");
-    expect(warnings).toHaveLength(2);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/Both baseline backgrounds/);
+  });
+
+  // #aeaeae and #afafaf straddle LIGHT_BACKGROUND_Y (0.4) by one 8-bit step
+  // in each channel (apcaYHex: ~0.3996 and ~0.4051) — a regression that
+  // shifted the cutoff or flipped `>` to `>=` in `isLightBackground` would
+  // still pass every other case above, which all sit far from the boundary.
+  it("classifies a baseline right at the isLightBackground cutoff correctly", () => {
+    expect(baselineInversionWarnings("#afafaf", "#aeaeae")).toEqual([]);
+    expect(baselineInversionWarnings("#aeaeae", "#afafaf")[0]).toMatch(/Both baseline backgrounds/);
   });
 });
 
