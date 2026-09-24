@@ -73,6 +73,16 @@ function parsePin(raw: string | null): PinSpec | undefined {
   return { mode, roleKey };
 }
 
+/** Shared by every hex field (seed, baseline light, baseline dark): only
+ *  commit a value that actually parses, and keep the live-typed draft in
+ *  sync with whatever was committed rather than whatever was typed. */
+function commitHexTo(value: string, setValue: (next: string) => void, setDraft: (next: string) => void) {
+  if (!isValidHex(value)) return;
+  const next = normaliseHex(value);
+  setValue(next);
+  setDraft(next);
+}
+
 function readStored<T extends string>(key: string, fallback: T): T {
   try {
     return (localStorage.getItem(key) as T) ?? fallback;
@@ -185,26 +195,17 @@ export function App() {
   );
   const rows = useMemo(() => separationRows(profile, familyWithDraft), [profile, familyWithDraft]);
 
-  const commitHex = useCallback((value: string) => {
-    if (!isValidHex(value)) return;
-    const next = normaliseHex(value);
-    setSeedHex(next);
-    setHexDraft(next);
-  }, []);
+  const commitHex = useCallback((value: string) => commitHexTo(value, setSeedHex, setHexDraft), []);
 
-  const commitBaselineLight = useCallback((value: string) => {
-    if (!isValidHex(value)) return;
-    const next = normaliseHex(value);
-    setBaselineLight(next);
-    setBaselineLightDraft(next);
-  }, []);
+  const commitBaselineLight = useCallback(
+    (value: string) => commitHexTo(value, setBaselineLight, setBaselineLightDraft),
+    [],
+  );
 
-  const commitBaselineDark = useCallback((value: string) => {
-    if (!isValidHex(value)) return;
-    const next = normaliseHex(value);
-    setBaselineDark(next);
-    setBaselineDarkDraft(next);
-  }, []);
+  const commitBaselineDark = useCallback(
+    (value: string) => commitHexTo(value, setBaselineDark, setBaselineDarkDraft),
+    [],
+  );
 
   const resetBaseline = useCallback(() => {
     commitBaselineLight(BASELINE_BACKGROUND.light);
@@ -310,8 +311,9 @@ export function App() {
           <p className="eyebrow">1 · Input</p>
           <h2 className="section-title">Design a colour</h2>
           <p className="section-note">
-            Pick a design system and a seed colour below. Colour Forge solves a full light- and dark-mode
-            role set from it, then checks every role against APCA, WCAG 2.2 and colour-vision deficiency.
+            Pick a seed colour and a baseline background below, and a design system to draw its role
+            names and tokens from. Colour Forge solves a full light- and dark-mode role set from it,
+            then checks every role against APCA, WCAG 2.2 and colour-vision deficiency.
           </p>
 
           <details className="advanced">
@@ -417,6 +419,7 @@ export function App() {
                         id="baseline-dark"
                         type="text"
                         size={9}
+                        aria-label="Baseline background, dark mode hex"
                         value={baselineDarkDraft}
                         onChange={(e) => setBaselineDarkDraft(e.target.value)}
                         onBlur={(e) => commitBaselineDark(e.target.value.trim())}

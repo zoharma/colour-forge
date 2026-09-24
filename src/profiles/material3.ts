@@ -54,9 +54,11 @@ import { BASELINE_BACKGROUND, type Profile } from "./types";
  *  modes, same as `base` and `container`, rather than jumping to `base`'s
  *  position in dark mode just because this one hue coincides with it.
  *
- *  `background`, `surface` and `onSurface` are the real neutral values from
- *  M3's baseline scheme (`neutral98`/`surface-container`/`neutral10` light,
- *  `neutral6`/`surface-container`/`neutral90` dark). `seedPalette` and
+ *  `surface` and `onSurface` are the real neutral values from M3's baseline
+ *  scheme (`surface-container`/`neutral10` light, `surface-container`/
+ *  `neutral90` dark); `background` is the tool's shared solving baseline
+ *  (`BASELINE_BACKGROUND`), not M3's own `neutral98`/`neutral6` page colour.
+ *  `seedPalette` and
  *  `family` are M3's own baseline key colours and their shipped role
  *  values — not Material 500, which is M2's palette, not M3's — read from
  *  `@material/web`'s reference palette (source colour #6750a4). M3 does not
@@ -71,7 +73,7 @@ export const material3Profile: Profile = {
   description:
     "M3's own colour-role shape — Base, Container, Base Dim — and --md-sys-color-* naming, seeded from M3's baseline key colours and checked against their shipped role values.",
   provenance:
-    "Role names follow M3's own shapes (base -> {intent}, container -> {intent}-container, baseDim -> {intent}-fixed-dim). background/surface/onSurface, seedPalette and family below are the real values from @material/web's baseline reference palette (source colour #6750a4).",
+    "Role names follow M3's own shapes (base -> {intent}, container -> {intent}-container, baseDim -> {intent}-fixed-dim). surface/onSurface, seedPalette and family below are the real values from @material/web's baseline reference palette (source colour #6750a4); background is the tool's shared solving baseline, not M3's own page colour.",
   scaleSize: 12,
 
   /** M3's own foreground pairings are exact, tone-specific values (on-primary

@@ -7,7 +7,7 @@ import { wcagRatioHex, permittedUsage, oneLevelDown, meetsWcag, type WcagRequire
 import { genericProfile } from "../src/profiles/generic";
 import { muiProfile } from "../src/profiles/mui";
 import { carbonProfile } from "../src/profiles/carbon";
-import { PROFILES, BASELINE_BACKGROUND } from "../src/profiles";
+import { PROFILES, BASELINE_BACKGROUND, type ModeKey } from "../src/profiles";
 import { REFERENCE_PALETTE, hueCircle } from "./reference-palettes";
 import { stepContext } from "./step-context";
 
@@ -251,30 +251,47 @@ describe("the shared solving background", () => {
   });
 
   it("solves the same scale step to the same hex across profiles, when no role there carries a requirement", () => {
-    // Step index 2 (light) is either unclaimed or claimed by a
-    // requirement:"none" role in every current profile — see
-    // generic.ts/diamond.ts's "surfaceStrong"/"containerHigh" and
-    // material3.ts/carbon.ts/mui.ts's silence on that index. With the same
-    // curve and the same background now shared by every profile, nothing
-    // should be able to make them diverge here.
-    const seed = "#9c27b0";
-    const hexes = PROFILES.map((profile) => generateScale(profile, "light", seed)[2]!.hex);
-    for (const hex of hexes) expect(hex).toBe(hexes[0]);
+    // Step index 2 is either unclaimed or claimed by a requirement:"none"
+    // role in every current profile, in both modes — see
+    // generic.ts/diamond.ts's "surfaceStrong"/"containerHigh",
+    // material3.ts's "container" (dark only), and carbon.ts/mui.ts's
+    // silence on that index. With the same curve and the same background
+    // now shared by every profile, nothing should be able to make them
+    // diverge here — checked across hue families and both modes, not one
+    // reported seed, since this is asserting a general solver property.
+    const modes: ModeKey[] = ["light", "dark"];
+    const seeds = REFERENCE_PALETTE.filter((_, i) => i % 3 === 0).map((c) => c.hex);
+    for (const mode of modes) {
+      for (const seed of seeds) {
+        const hexes = PROFILES.map((profile) => generateScale(profile, mode, seed)[2]!.hex);
+        for (const hex of hexes) expect(hex, `${mode} ${seed}`).toBe(hexes[0]);
+      }
+    }
   });
 
   it("still lets a role's own WCAG requirement diverge a profile from the shared baseline", () => {
-    // The concrete case that motivated the shared baseline: generic's
-    // step 5 (light index 4, "container", requirement "none") and Carbon's
-    // same index ("border", requirement "non-text") used to differ partly
-    // because of a different background, and partly because of this real
-    // per-role requirement. Sharing the background removed the first cause
-    // — this asserts the second, legitimate one is still there.
+    // The concrete case that motivated the shared baseline: light-mode step
+    // 5 (index 4) is generic's "container" (requirement "none") but
+    // Carbon's "border" (requirement "non-text", 3:1) — these used to
+    // differ partly because of a different background, and partly because
+    // of this real per-role requirement. Sharing the background removed the
+    // first cause; this asserts the second, legitimate one is still there.
+    //
+    // Dark mode's index 4 is deliberately not asserted to diverge here:
+    // generic's "solid" and Carbon's "layerAccent" both carry the same
+    // "non-text" requirement there, so with the background now shared too
+    // they correctly land on the *same* hex — itself a confirmation that
+    // divergence tracks the requirement, not the profile.
     const seed = "#9c27b0";
-    const genericStep = generateScale(genericProfile, "light", seed)[4]!;
-    const carbonStep = generateScale(carbonProfile, "light", seed)[4]!;
-    expect(carbonStep.hex).not.toBe(genericStep.hex);
-    expect(carbonStep.verdict).toBe("wcag-bound");
-    expect(genericStep.verdict).toBe("apca-met");
+    const genericLight = generateScale(genericProfile, "light", seed)[4]!;
+    const carbonLight = generateScale(carbonProfile, "light", seed)[4]!;
+    expect(carbonLight.hex).not.toBe(genericLight.hex);
+    expect(carbonLight.verdict).toBe("wcag-bound");
+    expect(genericLight.verdict).toBe("apca-met");
+
+    const genericDark = generateScale(genericProfile, "dark", seed)[4]!;
+    const carbonDark = generateScale(carbonProfile, "dark", seed)[4]!;
+    expect(carbonDark.hex).toBe(genericDark.hex);
   });
 });
 
