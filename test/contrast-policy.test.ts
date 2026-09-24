@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { buildDraft, type Draft } from "../src/color/scale";
+import { buildDraft, generateScale, type Draft } from "../src/color/scale";
 import { hexToOklch } from "../src/color/oklch";
 import { solveStep, effectiveRequirement, type ContrastPolicy } from "../src/color/solver";
 import { wcagRatioHex, permittedUsage, oneLevelDown, meetsWcag, type WcagRequirement } from "../src/color/wcag";
 import { genericProfile } from "../src/profiles/generic";
 import { muiProfile } from "../src/profiles/mui";
-import { PROFILES } from "../src/profiles";
+import { carbonProfile } from "../src/profiles/carbon";
+import { PROFILES, BASELINE_BACKGROUND } from "../src/profiles";
 import { REFERENCE_PALETTE, hueCircle } from "./reference-palettes";
 import { stepContext } from "./step-context";
 
@@ -238,6 +239,42 @@ describe("contrast policy", () => {
         6,
       );
     }
+  });
+});
+
+describe("the shared solving background", () => {
+  it("defaults every profile's background to BASELINE_BACKGROUND", () => {
+    for (const profile of PROFILES) {
+      expect(profile.modes.light.background).toBe(BASELINE_BACKGROUND.light);
+      expect(profile.modes.dark.background).toBe(BASELINE_BACKGROUND.dark);
+    }
+  });
+
+  it("solves the same scale step to the same hex across profiles, when no role there carries a requirement", () => {
+    // Step index 2 (light) is either unclaimed or claimed by a
+    // requirement:"none" role in every current profile — see
+    // generic.ts/diamond.ts's "surfaceStrong"/"containerHigh" and
+    // material3.ts/carbon.ts/mui.ts's silence on that index. With the same
+    // curve and the same background now shared by every profile, nothing
+    // should be able to make them diverge here.
+    const seed = "#9c27b0";
+    const hexes = PROFILES.map((profile) => generateScale(profile, "light", seed)[2]!.hex);
+    for (const hex of hexes) expect(hex).toBe(hexes[0]);
+  });
+
+  it("still lets a role's own WCAG requirement diverge a profile from the shared baseline", () => {
+    // The concrete case that motivated the shared baseline: generic's
+    // step 5 (light index 4, "container", requirement "none") and Carbon's
+    // same index ("border", requirement "non-text") used to differ partly
+    // because of a different background, and partly because of this real
+    // per-role requirement. Sharing the background removed the first cause
+    // — this asserts the second, legitimate one is still there.
+    const seed = "#9c27b0";
+    const genericStep = generateScale(genericProfile, "light", seed)[4]!;
+    const carbonStep = generateScale(carbonProfile, "light", seed)[4]!;
+    expect(carbonStep.hex).not.toBe(genericStep.hex);
+    expect(carbonStep.verdict).toBe("wcag-bound");
+    expect(genericStep.verdict).toBe("apca-met");
   });
 });
 

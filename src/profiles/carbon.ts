@@ -1,4 +1,4 @@
-import type { Profile } from "./types";
+import { BASELINE_BACKGROUND, type Profile } from "./types";
 
 /** IBM Carbon Design System.
  *
@@ -62,7 +62,7 @@ export const carbonProfile: Profile = {
 
   modes: {
     light: {
-      background: "#ffffff",
+      background: BASELINE_BACKGROUND.light,
       surface: "#f4f4f4",
       onSurface: "#161616",
       targetLc: [3, 8, 16, 30, 45, 58, 66, 75, 85, 90, 94, 98],
@@ -70,7 +70,7 @@ export const carbonProfile: Profile = {
       selector: ':root, [data-carbon-theme="white"]',
     },
     dark: {
-      background: "#161616",
+      background: BASELINE_BACKGROUND.dark,
       surface: "#262626",
       onSurface: "#f4f4f4",
       targetLc: [3, 8, 15, 24, 34, 48, 62, 74, 84, 90, 94, 98],

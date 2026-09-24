@@ -1,4 +1,4 @@
-import type { Profile } from "./types";
+import { BASELINE_BACKGROUND, type Profile } from "./types";
 
 /** Material Design 3 (Material You).
  *
@@ -83,7 +83,7 @@ export const material3Profile: Profile = {
 
   modes: {
     light: {
-      background: "#fef7ff",
+      background: BASELINE_BACKGROUND.light,
       surface: "#f3edf7",
       onSurface: "#1d1b20",
       targetLc: [3, 8, 16, 30, 45, 58, 66, 75, 85, 90, 94, 98],
@@ -91,7 +91,7 @@ export const material3Profile: Profile = {
       selector: ':root, [data-md-theme="light"]',
     },
     dark: {
-      background: "#141218",
+      background: BASELINE_BACKGROUND.dark,
       surface: "#211f26",
       onSurface: "#e6e0e9",
       targetLc: [3, 8, 15, 24, 34, 48, 62, 74, 84, 90, 94, 98],

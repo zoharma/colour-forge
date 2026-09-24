@@ -1,4 +1,4 @@
-import type { Profile } from "./types";
+import { BASELINE_BACKGROUND, type Profile } from "./types";
 
 /** Diamond Light Source — sci-react-ui's DiamondDS theme.
  *
@@ -27,7 +27,7 @@ export const diamondProfile: Profile = {
 
   modes: {
     light: {
-      background: "#f6f6f9",
+      background: BASELINE_BACKGROUND.light,
       surface: "#ffffff",
       onSurface: "#1a1c23",
       targetLc: [3, 8, 16, 30, 45, 58, 66, 75, 85, 90, 94, 98],
@@ -35,7 +35,7 @@ export const diamondProfile: Profile = {
       selector: ':root, [data-mode="light"]',
     },
     dark: {
-      background: "#0e1017",
+      background: BASELINE_BACKGROUND.dark,
       surface: "#161820",
       onSurface: "#e8eaf0",
       targetLc: [3, 8, 15, 24, 34, 48, 62, 74, 84, 90, 94, 98],

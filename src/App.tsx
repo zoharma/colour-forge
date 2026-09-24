@@ -11,7 +11,14 @@ import {
 import { buildDraft } from "./color/scale";
 import { suggestPin, type PinSpec } from "./color/pin";
 import { isValidHex, normaliseHex } from "./color/srgb";
-import { DEFAULT_PROFILE_ID, PROFILES, findProfile, type ModeKey, type SeededIntent } from "./profiles";
+import {
+  BASELINE_BACKGROUND,
+  DEFAULT_PROFILE_ID,
+  PROFILES,
+  findProfile,
+  type ModeKey,
+  type SeededIntent,
+} from "./profiles";
 import { POLICY_SLUGS, policyFromSlug } from "./urlPolicySlug";
 import { CVD_LABELS } from "./color/cvd";
 import { CvdControl, CVD_NOTES } from "./ui/CvdControl";
@@ -39,6 +46,8 @@ const INTRO_TEXT =
 function readUrlState() {
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
   const seed = params.get("seed");
+  const bgLight = params.get("bgLight");
+  const bgDark = params.get("bgDark");
   return {
     profileId: params.get("profile") ?? DEFAULT_PROFILE_ID,
     name: params.get("name") ?? "draft",
@@ -48,6 +57,10 @@ function readUrlState() {
     // onto a wall of collisions with itself, which reads as the tool being
     // broken rather than as the finding it is.
     seedHex: seed && isValidHex(seed) ? normaliseHex(seed) : "#7b4fb8",
+    // Independent of which profile is picked — a design system supplies
+    // role names and step placement, not the page the scale solves against.
+    baselineLight: bgLight && isValidHex(bgLight) ? normaliseHex(bgLight) : BASELINE_BACKGROUND.light,
+    baselineDark: bgDark && isValidHex(bgDark) ? normaliseHex(bgDark) : BASELINE_BACKGROUND.dark,
   };
 }
 
@@ -77,6 +90,10 @@ export function App() {
   const [showScale, setShowScale] = useState(false);
   const [pin, setPin] = useState<PinSpec | undefined>(initial.pin);
   const [hexDraft, setHexDraft] = useState(initial.seedHex);
+  const [baselineLight, setBaselineLight] = useState(initial.baselineLight);
+  const [baselineDark, setBaselineDark] = useState(initial.baselineDark);
+  const [baselineLightDraft, setBaselineLightDraft] = useState(initial.baselineLight);
+  const [baselineDarkDraft, setBaselineDarkDraft] = useState(initial.baselineDark);
   const [cvdView, setCvdView] = useState<CvdView>(() => readStored<CvdView>("cf-cvd", "none"));
   const [theme, setTheme] = useState<ThemeChoice>(() => readStored<ThemeChoice>("cf-theme", "system"));
   const [foregroundOverrides, setForegroundOverrides] = useState<Record<ModeKey, Record<string, string>>>({
@@ -84,19 +101,36 @@ export function App() {
     dark: {},
   });
 
-  const profile = useMemo(() => findProfile(profileId), [profileId]);
+  const baseProfile = useMemo(() => findProfile(profileId), [profileId]);
   const [family, setFamily] = useState<SeededIntent[]>(() => findProfile(initial.profileId).family);
 
   // Switching profile changes the role vocabulary itself, so a family, a set
   // of foreground picks and a pinned role key from the previous one no longer
-  // mean anything.
+  // mean anything. Keyed on baseProfile, not the baseline-overridden profile
+  // below, so editing the baseline background alone does not also wipe these.
   useEffect(() => {
-    setFamily(profile.family);
+    setFamily(baseProfile.family);
     setForegroundOverrides({ light: {}, dark: {} });
     setPin((current) =>
-      current && profile.roles.some((r) => r.key === current.roleKey) ? current : undefined,
+      current && baseProfile.roles.some((r) => r.key === current.roleKey) ? current : undefined,
     );
-  }, [profile]);
+  }, [baseProfile]);
+
+  // The scale solves against the baseline background regardless of which
+  // design system is selected — a profile supplies role names, step
+  // placement and CSS naming, not the page it's solved against. Every other
+  // consumer of `profile` below (draft, audit, preview, export) sees this
+  // overridden object, so the override only has to happen once, here.
+  const profile = useMemo(
+    () => ({
+      ...baseProfile,
+      modes: {
+        light: { ...baseProfile.modes.light, background: baselineLight },
+        dark: { ...baseProfile.modes.dark, background: baselineDark },
+      },
+    }),
+    [baseProfile, baselineLight, baselineDark],
+  );
 
   useEffect(() => {
     const root = document.documentElement;
@@ -123,10 +157,12 @@ export function App() {
       name,
       seed: seedHex,
       policy: POLICY_SLUGS[policy],
+      bgLight: baselineLight,
+      bgDark: baselineDark,
     });
     if (pin) params.set("pin", `${pin.mode}:${pin.roleKey}`);
     window.history.replaceState(null, "", `#${params.toString()}`);
-  }, [profileId, name, seedHex, policy, pin]);
+  }, [profileId, name, seedHex, policy, pin, baselineLight, baselineDark]);
 
   const draft = useMemo(
     () => buildDraft(profile, name.trim() || "draft", seedHex, policy, pin),
@@ -155,6 +191,25 @@ export function App() {
     setSeedHex(next);
     setHexDraft(next);
   }, []);
+
+  const commitBaselineLight = useCallback((value: string) => {
+    if (!isValidHex(value)) return;
+    const next = normaliseHex(value);
+    setBaselineLight(next);
+    setBaselineLightDraft(next);
+  }, []);
+
+  const commitBaselineDark = useCallback((value: string) => {
+    if (!isValidHex(value)) return;
+    const next = normaliseHex(value);
+    setBaselineDark(next);
+    setBaselineDarkDraft(next);
+  }, []);
+
+  const resetBaseline = useCallback(() => {
+    commitBaselineLight(BASELINE_BACKGROUND.light);
+    commitBaselineDark(BASELINE_BACKGROUND.dark);
+  }, [commitBaselineLight, commitBaselineDark]);
 
   const setForeground = (mode: ModeKey, roleKey: string, label: string) =>
     setForegroundOverrides((prev) => ({ ...prev, [mode]: { ...prev[mode], [roleKey]: label } }));
@@ -283,43 +338,97 @@ export function App() {
 
           <div className="card" style={{ marginTop: 18 }}>
             <div className="setup-grid">
-              <div className="input-row">
-                <div>
-                  <label className="field-label" htmlFor="hex">
-                    Seed colour
-                  </label>
-                  <div className="hex-input-group">
+              <div>
+                <div className="input-row">
+                  <div>
+                    <label className="field-label" htmlFor="hex">
+                      Seed colour
+                    </label>
+                    <div className="hex-input-group">
+                      <input
+                        type="color"
+                        value={seedHex}
+                        aria-label="Seed colour picker"
+                        onChange={(e) => commitHex(e.target.value)}
+                      />
+                      <input
+                        id="hex"
+                        type="text"
+                        size={9}
+                        value={hexDraft}
+                        onChange={(e) => setHexDraft(e.target.value)}
+                        onBlur={(e) => commitHex(e.target.value.trim())}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitHex(e.currentTarget.value.trim());
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="field-label" htmlFor="intent-name">
+                      Intent name
+                    </label>
                     <input
-                      type="color"
-                      value={seedHex}
-                      aria-label="Seed colour picker"
-                      onChange={(e) => commitHex(e.target.value)}
-                    />
-                    <input
-                      id="hex"
+                      id="intent-name"
                       type="text"
-                      size={9}
-                      value={hexDraft}
-                      onChange={(e) => setHexDraft(e.target.value)}
-                      onBlur={(e) => commitHex(e.target.value.trim())}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") commitHex(e.currentTarget.value.trim());
-                      }}
+                      value={name}
+                      style={{ fontFamily: "var(--font-ui)", width: "14ch" }}
+                      onChange={(e) => setName(e.target.value)}
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label className="field-label" htmlFor="intent-name">
-                    Intent name
+                <div style={{ marginTop: 16 }}>
+                  <label className="field-label" htmlFor="baseline-light">
+                    Baseline background
                   </label>
-                  <input
-                    id="intent-name"
-                    type="text"
-                    value={name}
-                    style={{ fontFamily: "var(--font-ui)", width: "14ch" }}
-                    onChange={(e) => setName(e.target.value)}
-                  />
+                  <p className="foot-note" style={{ marginTop: 0, marginBottom: 8 }}>
+                    Every step re-solves against this background to keep its target contrast.
+                  </p>
+                  <div className="input-row">
+                    <div className="hex-input-group">
+                      <input
+                        type="color"
+                        value={baselineLight}
+                        aria-label="Baseline background, light mode"
+                        onChange={(e) => commitBaselineLight(e.target.value)}
+                      />
+                      <input
+                        id="baseline-light"
+                        type="text"
+                        size={9}
+                        value={baselineLightDraft}
+                        onChange={(e) => setBaselineLightDraft(e.target.value)}
+                        onBlur={(e) => commitBaselineLight(e.target.value.trim())}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitBaselineLight(e.currentTarget.value.trim());
+                        }}
+                      />
+                    </div>
+                    <div className="hex-input-group">
+                      <input
+                        type="color"
+                        value={baselineDark}
+                        aria-label="Baseline background, dark mode"
+                        onChange={(e) => commitBaselineDark(e.target.value)}
+                      />
+                      <input
+                        id="baseline-dark"
+                        type="text"
+                        size={9}
+                        value={baselineDarkDraft}
+                        onChange={(e) => setBaselineDarkDraft(e.target.value)}
+                        onBlur={(e) => commitBaselineDark(e.target.value.trim())}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitBaselineDark(e.currentTarget.value.trim());
+                        }}
+                      />
+                    </div>
+                    <button className="btn tiny ghost" type="button" onClick={resetBaseline}>
+                      Reset to default
+                    </button>
+                  </div>
                 </div>
               </div>
 

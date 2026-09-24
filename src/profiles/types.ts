@@ -55,7 +55,13 @@ export interface RoleDef {
 }
 
 export interface ProfileMode {
-  /** The page background roles are solved against. */
+  /** The page background roles are solved against. Defaults to
+   *  BASELINE_BACKGROUND and is meant to stay that way across every
+   *  profile — a design system supplies role names, step placement and CSS
+   *  naming, not its own solving background. The app's "Baseline background"
+   *  control overrides this live, independent of which profile is picked;
+   *  see App.tsx. A profile's own real page colour, if it differs, belongs
+   *  on `surface`/`onSurface` instead, which stay real per-system values. */
   background: string;
   /** The raised surface used for the container-visibility check. */
   surface: string;
@@ -132,6 +138,17 @@ export const roleByKey = (profile: Profile, key: string): RoleDef | undefined =>
  *  Picked the same way as `CVD_SEPARATION_FLOOR` in cvd.ts (which
  *  `meaningBearing` matches) — see its doc comment. */
 export const SEPARATION_FLOOR = { meaningBearing: 0.016, wash: 0.01 } as const;
+
+/** Default page background the scale solves against before anyone touches
+ *  the baseline control — deliberately the same regardless of which real
+ *  design system is selected. A profile's own real background (Carbon's
+ *  #ffffff, M3's #fef7ff, ...) is not represented here; surface/onSurface
+ *  still carry each system's real values, for preview and the "Theme text"
+ *  candidate. */
+export const BASELINE_BACKGROUND: Record<ModeKey, string> = {
+  light: "#fbfbfd",
+  dark: "#0b0d12",
+};
 
 export const separationFloorFor = (role: RoleDef): number =>
   role.separationFloor ?? (role.requirement === "none" ? SEPARATION_FLOOR.wash : SEPARATION_FLOOR.meaningBearing);
