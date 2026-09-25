@@ -363,8 +363,9 @@ export function App() {
           <div className="view-controls">
             <button
               type="button"
-              className="btn tiny ghost about-trigger"
+              className="btn tiny ghost about-trigger has-tooltip"
               aria-label="About Colour Forge"
+              data-tooltip="About Colour Forge"
               onClick={() => setShowAbout(true)}
             >
               <Info size={15} aria-hidden="true" />
