@@ -20,6 +20,7 @@ All notable changes to this project are documented here. Format follows
   condensed docs (the contrast model, Lc, pinning, CVD, profiles) and a
   link to the full README. Closes via its own X button, Escape, or a
   click on the backdrop (but not a text selection dragged past its edge).
+  The trigger shows a small CSS tooltip on hover or keyboard focus.
 
 ### Changed
 
