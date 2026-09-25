@@ -7,6 +7,16 @@
 
 import { clamp01, hexToRgb255, linearToRgb255, type Rgb } from "./srgb";
 
+/** What Lc means, shared verbatim by the in-app "How the target contrast is
+ *  chosen" panel and the About dialog so the two can't independently drift
+ *  on the wording — each renders its own bold "Lc" before this, since `<b>`
+ *  vs `<strong>` differs between them. README.md's own explanation is kept
+ *  matching by hand, since markdown can't import this. */
+export const LC_EXPLANATION =
+  '("Lightness Contrast"): a signed score, roughly 0 to 108, rather than a ratio. Positive means ' +
+  "dark text on a light background, negative means light text on a dark one; most figures shown are " +
+  "the magnitude.";
+
 const SRCO = 0.2126729;
 const SGCO = 0.7151522;
 const SBCO = 0.072175;

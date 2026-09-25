@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronRight, Monitor, Moon, Sun, SwatchBook } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronRight, Info, Monitor, Moon, Sun, SwatchBook } from "lucide-react";
 
 import { auditDraft, draftAsIntent, separationRows } from "./color/audit";
+import { LC_EXPLANATION } from "./color/apca";
 import type { CvdView } from "./color/cvd";
 import {
   POLICY_DESCRIPTIONS,
   POLICY_LABELS,
   type ContrastPolicy,
 } from "./color/solver";
-import { buildDraft } from "./color/scale";
+import { applyBaseline, buildDraft } from "./color/scale";
 import { suggestPin, type PinSpec } from "./color/pin";
 import { isValidHex, normaliseHex } from "./color/srgb";
 import {
@@ -21,6 +22,7 @@ import {
 } from "./profiles";
 import { POLICY_SLUGS, policyFromSlug } from "./urlPolicySlug";
 import { CVD_LABELS } from "./color/cvd";
+import { AboutDialog } from "./ui/AboutDialog";
 import { CvdControl, CVD_NOTES } from "./ui/CvdControl";
 import { ExportPanel } from "./ui/ExportPanel";
 import { FamilyTable } from "./ui/FamilyTable";
@@ -96,6 +98,88 @@ function useHexField(initial: string): [string, string, (next: string) => void, 
   return [value, draft, setDraft, commit];
 }
 
+/** `<input type="color">` fires `onChange` continuously while dragging in
+ *  some browsers, and each commit here triggers a full two-mode re-solve.
+ *  Collapsing a drag into one commit per pause avoids that — deliberately
+ *  not applied to the seed picker's `commitHex`, which keeps its existing
+ *  every-tick feel; background changes are safe to defer since nothing else
+ *  depends on seeing every intermediate baseline value.
+ *
+ *  Two things a plain debounce alone would get wrong, both handled here:
+ *  - `ref` listens for the input's native `change` (fired once, when the
+ *    picker is dismissed — React's `onChange` for this element type is
+ *    bound to `input`, which fires on every drag tick instead) and flushes
+ *    immediately, so a completed drag settles as soon as it ends rather
+ *    than waiting out the delay. It flushes `pendingRef.current.value`, not
+ *    `el.value`: for a controlled input, React resets the DOM's own
+ *    `.value` back to the last *committed* state right after handling each
+ *    native `input` tick that didn't itself commit a new one, so by the
+ *    time `change` fires, `el.value` is already stale — only the value
+ *    React's own `onChange` actually saw (captured below, in `onDrag`) is
+ *    trustworthy.
+ *  - `commitNow` is the only way this hook lets a caller commit outside of
+ *    a drag (typed hex, "Reset to default", and any future direct-commit
+ *    path) — it always cancels a pending drag commit first, so there's no
+ *    separate "remember to cancel" step a call site can forget. */
+function useDebouncedCommit(commit: (next: string) => void, delayMs = 120) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pendingRef = useRef<{ timeoutId: ReturnType<typeof setTimeout>; value: string } | null>(null);
+
+  const cancelPending = useCallback(() => {
+    if (pendingRef.current) clearTimeout(pendingRef.current.timeoutId);
+    pendingRef.current = null;
+  }, []);
+  useEffect(() => cancelPending, [cancelPending]);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const onSettle = () => {
+      const pending = pendingRef.current;
+      cancelPending();
+      if (pending) commit(pending.value);
+    };
+    el.addEventListener("change", onSettle);
+    return () => el.removeEventListener("change", onSettle);
+  }, [commit, cancelPending]);
+
+  const onDrag = useCallback(
+    (next: string) => {
+      cancelPending();
+      const timeoutId = setTimeout(() => {
+        // Clear before committing, not after: `commit` can synchronously
+        // trigger a re-render (and with it, this same effect's cleanup),
+        // and a stale entry left in `pendingRef` after the timer that owns
+        // it already fired would otherwise still read as "a commit is
+        // outstanding" to `onSettle` below.
+        pendingRef.current = null;
+        commit(next);
+      }, delayMs);
+      pendingRef.current = { value: next, timeoutId };
+    },
+    [commit, delayMs, cancelPending],
+  );
+
+  const commitNow = useCallback(
+    (next: string) => {
+      cancelPending();
+      commit(next);
+    },
+    [commit, cancelPending],
+  );
+
+  return useMemo(() => ({ ref: inputRef, onDrag, commitNow }), [onDrag, commitNow]);
+}
+
+/** The one place a typed baseline hex is validated before committing —
+ *  shared by both the light and dark fields' blur/Enter handlers, so a
+ *  malformed value can't cancel a still-pending drag commit and then no-op,
+ *  silently discarding both. */
+function commitTypedHex(raw: string, commitNow: (next: string) => void): void {
+  const trimmed = raw.trim();
+  if (isValidHex(trimmed)) commitNow(trimmed);
+}
+
 function readStored<T extends string>(key: string, fallback: T): T {
   try {
     return (localStorage.getItem(key) as T) ?? fallback;
@@ -110,6 +194,8 @@ export function App() {
   const [name, setName] = useState(initial.name);
   const [policy, setPolicy] = useState<ContrastPolicy>(initial.policy);
   const [showScale, setShowScale] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+  const closeAbout = useCallback(() => setShowAbout(false), []);
   const [pin, setPin] = useState<PinSpec | undefined>(initial.pin);
   const [seedHex, hexDraft, setHexDraft, commitHex] = useHexField(initial.seedHex);
   const [baselineLight, baselineLightDraft, setBaselineLightDraft, commitBaselineLight] = useHexField(
@@ -118,6 +204,8 @@ export function App() {
   const [baselineDark, baselineDarkDraft, setBaselineDarkDraft, commitBaselineDark] = useHexField(
     initial.baselineDark,
   );
+  const baselineLightDebounce = useDebouncedCommit(commitBaselineLight);
+  const baselineDarkDebounce = useDebouncedCommit(commitBaselineDark);
   const [cvdView, setCvdView] = useState<CvdView>(() => readStored<CvdView>("cf-cvd", "none"));
   const [theme, setTheme] = useState<ThemeChoice>(() => readStored<ThemeChoice>("cf-theme", "system"));
   const [foregroundOverrides, setForegroundOverrides] = useState<Record<ModeKey, Record<string, string>>>({
@@ -145,16 +233,13 @@ export function App() {
   // placement and CSS naming, not the page it's solved against. Every other
   // consumer of `profile` below (draft, audit, preview, export) sees this
   // overridden object, so the override only has to happen once, here.
-  const profile = useMemo(
-    () => ({
-      ...baseProfile,
-      modes: {
-        light: { ...baseProfile.modes.light, background: baselineLight },
-        dark: { ...baseProfile.modes.dark, background: baselineDark },
-      },
-    }),
+  // `applyBaseline` (color/scale.ts) bundles the override with the inversion
+  // check below, so the two can't be wired up separately and drift apart.
+  const { profile, warnings: baselineWarnings } = useMemo(
+    () => applyBaseline(baseProfile, baselineLight, baselineDark),
     [baseProfile, baselineLight, baselineDark],
   );
+  const baselineWarning = baselineWarnings.length ? baselineWarnings.join(" ") : undefined;
 
   useEffect(() => {
     const root = document.documentElement;
@@ -210,9 +295,9 @@ export function App() {
   const rows = useMemo(() => separationRows(profile, familyWithDraft), [profile, familyWithDraft]);
 
   const resetBaseline = useCallback(() => {
-    commitBaselineLight(BASELINE_BACKGROUND.light);
-    commitBaselineDark(BASELINE_BACKGROUND.dark);
-  }, [commitBaselineLight, commitBaselineDark]);
+    baselineLightDebounce.commitNow(BASELINE_BACKGROUND.light);
+    baselineDarkDebounce.commitNow(BASELINE_BACKGROUND.dark);
+  }, [baselineLightDebounce, baselineDarkDebounce]);
 
   const setForeground = (mode: ModeKey, roleKey: string, label: string) =>
     setForegroundOverrides((prev) => ({ ...prev, [mode]: { ...prev[mode], [roleKey]: label } }));
@@ -276,6 +361,15 @@ export function App() {
             </div>
           </div>
           <div className="view-controls">
+            <button
+              type="button"
+              className="btn tiny ghost about-trigger has-tooltip"
+              aria-label="About Colour Forge"
+              data-tooltip="About Colour Forge"
+              onClick={() => setShowAbout(true)}
+            >
+              <Info size={15} aria-hidden="true" />
+            </button>
             <CvdControl view={cvdView} onChange={setCvdView} />
             <div className="segmented" role="group" aria-label="Page theme">
               {(["system", "light", "dark"] as ThemeChoice[]).map((choice) => {
@@ -311,11 +405,10 @@ export function App() {
 
         <section>
           <p className="eyebrow">1 · Input</p>
-          <h2 className="section-title">Design a colour</h2>
+          <h2 className="section-title">Set up your palette</h2>
           <p className="section-note">
             Pick a seed colour and a baseline background below, and a design system to draw its role
-            names and tokens from. Colour Forge solves a full light- and dark-mode role set from it,
-            then checks every role against APCA, WCAG 2.2 and colour-vision deficiency.
+            names and tokens from.
           </p>
 
           <details className="advanced">
@@ -332,10 +425,10 @@ export function App() {
                 badge appears on any role where those disagreed.
               </p>
               <p className="section-note" style={{ marginBottom: 0 }}>
-                APCA targets run from Lc 45 for non-text elements, Lc 60 for large text, up to Lc 75+ for
-                body copy — APCA scores those two differently even though WCAG doesn't. WCAG 2.2 asks for a
-                ratio of at least 3:1 for large text or non-text, 4.5:1 for normal body text, and 7:1 where
-                AAA is required.
+                APCA reports contrast as <b>Lc</b> {LC_EXPLANATION} Targets run from Lc 45 for non-text
+                elements, Lc 60 for large text, up to Lc 75+ for body copy — APCA scores those two
+                differently even though WCAG doesn't. WCAG 2.2 asks for a ratio of at least 3:1 for large
+                text or non-text, 4.5:1 for normal body text, and 7:1 where AAA is required.
               </p>
             </div>
           </details>
@@ -393,10 +486,11 @@ export function App() {
                   <div className="input-row">
                     <div className="hex-input-group">
                       <input
+                        ref={baselineLightDebounce.ref}
                         type="color"
                         value={baselineLight}
                         aria-label="Baseline background, light mode"
-                        onChange={(e) => commitBaselineLight(e.target.value)}
+                        onChange={(e) => baselineLightDebounce.onDrag(e.target.value)}
                       />
                       <input
                         id="baseline-light"
@@ -405,18 +499,19 @@ export function App() {
                         aria-label="Baseline background, light mode hex"
                         value={baselineLightDraft}
                         onChange={(e) => setBaselineLightDraft(e.target.value)}
-                        onBlur={(e) => commitBaselineLight(e.target.value.trim())}
+                        onBlur={(e) => commitTypedHex(e.target.value, baselineLightDebounce.commitNow)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") commitBaselineLight(e.currentTarget.value.trim());
+                          if (e.key === "Enter") commitTypedHex(e.currentTarget.value, baselineLightDebounce.commitNow);
                         }}
                       />
                     </div>
                     <div className="hex-input-group">
                       <input
+                        ref={baselineDarkDebounce.ref}
                         type="color"
                         value={baselineDark}
                         aria-label="Baseline background, dark mode"
-                        onChange={(e) => commitBaselineDark(e.target.value)}
+                        onChange={(e) => baselineDarkDebounce.onDrag(e.target.value)}
                       />
                       <input
                         id="baseline-dark"
@@ -425,9 +520,9 @@ export function App() {
                         aria-label="Baseline background, dark mode hex"
                         value={baselineDarkDraft}
                         onChange={(e) => setBaselineDarkDraft(e.target.value)}
-                        onBlur={(e) => commitBaselineDark(e.target.value.trim())}
+                        onBlur={(e) => commitTypedHex(e.target.value, baselineDarkDebounce.commitNow)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") commitBaselineDark(e.currentTarget.value.trim());
+                          if (e.key === "Enter") commitTypedHex(e.currentTarget.value, baselineDarkDebounce.commitNow);
                         }}
                       />
                     </div>
@@ -435,6 +530,11 @@ export function App() {
                       Reset to default
                     </button>
                   </div>
+                  {baselineWarning && (
+                    <p className="banner" role="alert">
+                      <strong>Baseline backgrounds look inverted.</strong> {baselineWarning}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -596,6 +696,8 @@ export function App() {
           </div>
         </section>
       </div>
+
+      <AboutDialog open={showAbout} onClose={closeAbout} />
     </>
   );
 }

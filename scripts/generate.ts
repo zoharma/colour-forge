@@ -3,15 +3,24 @@
  *  stdout, in the same shape as the "Export JSON" panel.
  *
  *  Usage: npm run generate -- --seed "#3366ff" [name] [--profile mui]
- *         [--policy wcag-relaxed] [--audit]
+ *         [--policy wcag-relaxed] [--bg-light "#fff"] [--bg-dark "#111"]
+ *         [--audit]
  *         [--scale] (prints just the raw ramp instead of the named roles)
  *
  *  The intent name can be given positionally ("blue") or as --name "blue";
  *  --name wins if both are given. */
 
-import { findProfile, DEFAULT_PROFILE_ID, PROFILES, displayStep, type ModeKey, type Profile } from "../src/profiles";
+import {
+  findProfile,
+  DEFAULT_PROFILE_ID,
+  PROFILES,
+  BASELINE_BACKGROUND,
+  displayStep,
+  type ModeKey,
+  type Profile,
+} from "../src/profiles";
 import { isValidHex, normaliseHex } from "../src/color/srgb";
-import { buildDraft, type Draft } from "../src/color/scale";
+import { applyBaseline, buildDraft, type Draft } from "../src/color/scale";
 import { auditDraft, draftAsIntent } from "../src/color/audit";
 import { exportJson } from "../src/color/export";
 import { DEFAULT_CONTRAST_POLICY, type ContrastPolicy } from "../src/color/solver";
@@ -46,6 +55,8 @@ interface Args {
   profileId: string;
   policy: ContrastPolicy;
   name: string;
+  bgLight: string;
+  bgDark: string;
   audit: boolean;
   scale: boolean;
 }
@@ -83,6 +94,19 @@ function parseArgs(argv: string[]): Args {
   }
 
   const explicitName = get("--name");
+
+  // Shared by both baseline flags: fails if given with no value (like
+  // --seed), fails if given an invalid hex, and falls back to the shared
+  // default when not given at all.
+  const getHexFlag = (flag: string, fallback: string): string => {
+    const raw = get(flag);
+    if (raw === undefined && argv.includes(flag)) fail(`${flag} requires a hex value`);
+    if (raw !== undefined && !isValidHex(raw)) fail(`"${raw}" is not a valid hex colour`);
+    return raw ? normaliseHex(raw) : fallback;
+  };
+  const bgLight = getHexFlag("--bg-light", BASELINE_BACKGROUND.light);
+  const bgDark = getHexFlag("--bg-dark", BASELINE_BACKGROUND.dark);
+
   const audit = has("--audit");
   const scale = has("--scale");
 
@@ -96,13 +120,21 @@ function parseArgs(argv: string[]): Args {
     profileId,
     policy: policyInput,
     name: explicitName ?? positionalName ?? seed,
+    bgLight,
+    bgDark,
     audit,
     scale,
   };
 }
 
 const args = parseArgs(process.argv.slice(2));
-const profile = findProfile(args.profileId);
+const baseProfile = findProfile(args.profileId);
+const { profile, warnings: baselineWarnings } = applyBaseline(baseProfile, args.bgLight, args.bgDark);
+
+for (const warning of baselineWarnings) {
+  console.error(`generate: warning: ${warning}`);
+}
+
 const draft = buildDraft(profile, args.name, args.seed, args.policy);
 
 const result: Record<string, unknown> = args.scale

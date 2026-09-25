@@ -150,6 +150,21 @@ export const BASELINE_BACKGROUND: Record<ModeKey, string> = {
   dark: "#0b0d12",
 };
 
+/** Overrides a profile's solving background independent of its own real
+ *  page colour — a profile supplies role names and step placement, not the
+ *  page the scale solves against. Shared by the UI's "Baseline background"
+ *  control and the CLI's `--bg-light`/`--bg-dark` flags, so the two override
+ *  the same way by construction rather than by two hand-copied literals. */
+export function withBaseline(profile: Profile, light: string, dark: string): Profile {
+  return {
+    ...profile,
+    modes: {
+      light: { ...profile.modes.light, background: light },
+      dark: { ...profile.modes.dark, background: dark },
+    },
+  };
+}
+
 export const separationFloorFor = (role: RoleDef): number =>
   role.separationFloor ?? (role.requirement === "none" ? SEPARATION_FLOOR.wash : SEPARATION_FLOOR.meaningBearing);
 

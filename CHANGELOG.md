@@ -4,6 +4,33 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.10] - 2026-09-25
+
+### Added
+
+- A warning (UI banner, and a matching CLI message) when the light- and
+  dark-mode baseline backgrounds are set the wrong way round for their
+  mode (e.g. light mode's reads as dark), since that silently flips which
+  direction "more separated" means for that mode with no other cue.
+- `npm run generate` accepts `--bg-light`/`--bg-dark` to override the
+  baseline background, matching the UI's "Baseline background" control —
+  previously the CLI always solved against the shared default with no way
+  to reproduce a UI override.
+- An "About Colour Forge" dialog, opened from a header info button, with
+  condensed docs (the contrast model, Lc, pinning, CVD, profiles) and a
+  link to the full README. Closes via its own X button, Escape, or a
+  click on the backdrop (but not a text selection dragged past its edge).
+  The trigger shows a small CSS tooltip on hover or keyboard focus.
+
+### Changed
+
+- The baseline background colour pickers now debounce their commit instead
+  of re-solving both modes on every `onChange` tick while dragging. A
+  direct commit (typed hex, "Reset to default") always takes precedence
+  over a still-pending drag, and a completed drag commits as soon as the
+  picker closes rather than waiting out the debounce.
+- Renamed the "Design a colour" section title to "Set up your palette".
+
 ## [0.5.9] - 2026-09-24
 
 ### Added

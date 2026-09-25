@@ -17,12 +17,12 @@ import {
   type StepContext,
   type ContrastPolicy,
 } from "../src/color/solver";
-import { buildDraft, generateScale, foregroundCandidates } from "../src/color/scale";
+import { baselineInversionWarnings, buildDraft, generateScale, foregroundCandidates } from "../src/color/scale";
 import { auditDraft, draftAsIntent, separationRows } from "../src/color/audit";
 import { exportCss, exportJson, slugifyIntent } from "../src/color/export";
 import { diamondProfile } from "../src/profiles/diamond";
 import { genericProfile } from "../src/profiles/generic";
-import { PROFILES } from "../src/profiles";
+import { PROFILES, BASELINE_BACKGROUND } from "../src/profiles";
 import { WCAG_MINIMUM } from "../src/color/wcag";
 import type { ModeKey, Profile } from "../src/profiles/types";
 import { REFERENCE_PALETTE, hueCircle } from "./reference-palettes";
@@ -314,6 +314,43 @@ const HUE_SWEEP_SEEDS = (() => {
  *  which sits close enough to the gamut edge that a moderate-lightness
  *  sweep alone would never visit it. */
 const scaleTestSeeds = (profile: Profile) => [...HUE_SWEEP_SEEDS, ...profile.seedPalette.map((s) => s.hex)];
+
+describe("baseline inversion warnings", () => {
+  it("is empty for the shared default baseline", () => {
+    expect(baselineInversionWarnings(BASELINE_BACKGROUND.light, BASELINE_BACKGROUND.dark)).toEqual([]);
+  });
+
+  it("is empty for a light/dark pair that isn't inverted", () => {
+    expect(baselineInversionWarnings("#ffffff", "#000000")).toEqual([]);
+  });
+
+  it("flags only the light baseline when just it reads as dark", () => {
+    const warnings = baselineInversionWarnings("#000000", "#000000");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/light-mode baseline measures as dark/);
+  });
+
+  it("flags only the dark baseline when just it reads as light", () => {
+    const warnings = baselineInversionWarnings("#ffffff", "#ffffff");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/dark-mode baseline measures as light/);
+  });
+
+  it("flags a fully swapped pair as one combined message, not two", () => {
+    const warnings = baselineInversionWarnings("#000000", "#ffffff");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/Both baseline backgrounds/);
+  });
+
+  // #aeaeae and #afafaf straddle LIGHT_BACKGROUND_Y (0.4) by one 8-bit step
+  // in each channel (apcaYHex: ~0.3996 and ~0.4051) — a regression that
+  // shifted the cutoff or flipped `>` to `>=` in `isLightBackground` would
+  // still pass every other case above, which all sit far from the boundary.
+  it("classifies a baseline right at the isLightBackground cutoff correctly", () => {
+    expect(baselineInversionWarnings("#afafaf", "#aeaeae")).toEqual([]);
+    expect(baselineInversionWarnings("#aeaeae", "#afafaf")[0]).toMatch(/Both baseline backgrounds/);
+  });
+});
 
 describe("scale generation", () => {
   for (const profile of PROFILES) {

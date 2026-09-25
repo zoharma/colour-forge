@@ -14,7 +14,7 @@ import {
   type StepContext,
 } from "./solver";
 import { WCAG_MINIMUM, meetsWcag, wcagRatioHex, type WcagRequirement } from "./wcag";
-import type { ModeKey, Profile, RoleDef } from "../profiles/types";
+import { withBaseline, type ModeKey, type Profile, type RoleDef } from "../profiles/types";
 
 /** A background above this relative luminance is treated as light, which
  *  flips which direction "more separated" means. Read from the actual
@@ -23,6 +23,47 @@ import type { ModeKey, Profile, RoleDef } from "../profiles/types";
 const LIGHT_BACKGROUND_Y = 0.4;
 
 export const isLightBackground = (hex: string): boolean => apcaYHex(hex) > LIGHT_BACKGROUND_Y;
+
+/** Which of the two baseline backgrounds read as the wrong lightness for
+ *  their own mode — light mode's measuring dark, or dark mode's measuring
+ *  light — since either one flips `backgroundIsLight` for that mode and
+ *  solves it backwards with no other cue. Empty when neither is inverted; one
+ *  combined message (not two) when both are, since a fully swapped pair is
+ *  one cause, not two independent ones. Shared by the UI's warning banner
+ *  and the CLI's own warning (`--bg-light`/`--bg-dark`), so the two check and
+ *  phrase this identically rather than by hand-copied branches that can
+ *  drift apart. */
+export function baselineInversionWarnings(lightBg: string, darkBg: string): string[] {
+  const lightReadsDark = !isLightBackground(lightBg);
+  const darkReadsLight = isLightBackground(darkBg);
+  if (lightReadsDark && darkReadsLight) {
+    return [
+      "Both baseline backgrounds read as the wrong mode: the light-mode one measures as " +
+        "dark and the dark-mode one measures as light. Both scales will solve backwards.",
+    ];
+  }
+  if (lightReadsDark) {
+    return ["The light-mode baseline measures as dark, so its scale will solve as if it were dark mode."];
+  }
+  if (darkReadsLight) {
+    return ["The dark-mode baseline measures as light, so its scale will solve as if it were light mode."];
+  }
+  return [];
+}
+
+/** `withBaseline` plus the inversion check that has to travel with any
+ *  override capable of feeding a wrong-way-round background into the solver
+ *  silently — bundled into one call so a caller can't wire up the override
+ *  without also getting the warnings. Both of `App.tsx`'s baseline control
+ *  and `scripts/generate.ts`'s `--bg-light`/`--bg-dark` go through this
+ *  rather than calling `withBaseline` on its own. */
+export function applyBaseline(
+  profile: Profile,
+  lightBg: string,
+  darkBg: string,
+): { profile: Profile; warnings: string[] } {
+  return { profile: withBaseline(profile, lightBg, darkBg), warnings: baselineInversionWarnings(lightBg, darkBg) };
+}
 
 const strictest = (a: WcagRequirement, b: WcagRequirement): WcagRequirement =>
   WCAG_MINIMUM[a] >= WCAG_MINIMUM[b] ? a : b;
